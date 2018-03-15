@@ -1,9 +1,6 @@
 [package]
-name = "mrusby"
+name = "mruby-sys"
 version = "0.0.1"
 authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
 
 [dependencies]
-
-[workspace]
-members = ["mruby-sys"]
