@@ -359,6 +359,25 @@ typedef struct {
 } mrb_callinfo;
 ```
 
+```rust
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrb_callinfo {
+    pub mid: mrb_sym,
+    pub proc_: *mut RProc,
+    pub stackent: *mut mrb_value,
+    pub nregs: ::std::os::raw::c_int,
+    pub ridx: ::std::os::raw::c_int,
+    pub epos: ::std::os::raw::c_int,
+    pub env: *mut REnv,
+    pub pc: *mut mrb_code,
+    pub err: *mut mrb_code,
+    pub argc: ::std::os::raw::c_int,
+    pub acc: ::std::os::raw::c_int,
+    pub target_class: *mut RClass,
+}
+```
+
 ### `mrb_fiber_state`
 
 ```c
