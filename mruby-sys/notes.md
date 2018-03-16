@@ -2,7 +2,119 @@ This is my notes about mruby bindings @_@
 
 # mruby types known by Rust
 
-## in `Object.h`
+## in `value.h`
+
+### `mrb_int`
+
+```c
+#if defined(MRB_INT64)
+  typedef int64_t mrb_int;
+# define MRB_INT_BIT 64
+# define MRB_INT_MIN (INT64_MIN>>MRB_FIXNUM_SHIFT)
+# define MRB_INT_MAX (INT64_MAX>>MRB_FIXNUM_SHIFT)
+# define MRB_PRIo PRIo64
+# define MRB_PRId PRId64
+# define MRB_PRIx PRIx64
+#elif defined(MRB_INT16)
+  typedef int16_t mrb_int;
+# define MRB_INT_BIT 16
+# define MRB_INT_MIN (INT16_MIN>>MRB_FIXNUM_SHIFT)
+# define MRB_INT_MAX (INT16_MAX>>MRB_FIXNUM_SHIFT)
+# define MRB_PRIo PRIo16
+# define MRB_PRId PRId16
+# define MRB_PRIx PRIx16
+#else
+  typedef int32_t mrb_int;
+# define MRB_INT_BIT 32
+# define MRB_INT_MIN (INT32_MIN>>MRB_FIXNUM_SHIFT)
+# define MRB_INT_MAX (INT32_MAX>>MRB_FIXNUM_SHIFT)
+# define MRB_PRIo PRIo32
+# define MRB_PRId PRId32
+# define MRB_PRIx PRIx32
+#endif
+```
+
+```rust
+pub type mrb_int = i32;
+```
+
+### `mrb_float`
+```c
+#ifdef MRB_USE_FLOAT
+  typedef float mrb_float;
+#else
+  typedef double mrb_float;
+#endif
+```
+
+```rust
+pub type mrb_float = f64;
+```
+
+### `mrb_vtype`
+
+```c
+enum mrb_vtype {
+  MRB_TT_FALSE = 0,   /*   0 */
+  MRB_TT_FREE,        /*   1 */
+  MRB_TT_TRUE,        /*   2 */
+  MRB_TT_FIXNUM,      /*   3 */
+  MRB_TT_SYMBOL,      /*   4 */
+  MRB_TT_UNDEF,       /*   5 */
+  MRB_TT_FLOAT,       /*   6 */
+  MRB_TT_CPTR,        /*   7 */
+  MRB_TT_OBJECT,      /*   8 */
+  MRB_TT_CLASS,       /*   9 */
+  MRB_TT_MODULE,      /*  10 */
+  MRB_TT_ICLASS,      /*  11 */
+  MRB_TT_SCLASS,      /*  12 */
+  MRB_TT_PROC,        /*  13 */
+  MRB_TT_ARRAY,       /*  14 */
+  MRB_TT_HASH,        /*  15 */
+  MRB_TT_STRING,      /*  16 */
+  MRB_TT_RANGE,       /*  17 */
+  MRB_TT_EXCEPTION,   /*  18 */
+  MRB_TT_FILE,        /*  19 */
+  MRB_TT_ENV,         /*  20 */
+  MRB_TT_DATA,        /*  21 */
+  MRB_TT_FIBER,       /*  22 */
+  MRB_TT_ISTRUCT,     /*  23 */
+  MRB_TT_BREAK,       /*  24 */
+  MRB_TT_MAXDEFINE    /*  25 */
+};
+```
+
+```rust
+pub const mrb_vtype_MRB_TT_FALSE: mrb_vtype = 0;
+pub const mrb_vtype_MRB_TT_FREE: mrb_vtype = 1;
+pub const mrb_vtype_MRB_TT_TRUE: mrb_vtype = 2;
+pub const mrb_vtype_MRB_TT_FIXNUM: mrb_vtype = 3;
+pub const mrb_vtype_MRB_TT_SYMBOL: mrb_vtype = 4;
+pub const mrb_vtype_MRB_TT_UNDEF: mrb_vtype = 5;
+pub const mrb_vtype_MRB_TT_FLOAT: mrb_vtype = 6;
+pub const mrb_vtype_MRB_TT_CPTR: mrb_vtype = 7;
+pub const mrb_vtype_MRB_TT_OBJECT: mrb_vtype = 8;
+pub const mrb_vtype_MRB_TT_CLASS: mrb_vtype = 9;
+pub const mrb_vtype_MRB_TT_MODULE: mrb_vtype = 10;
+pub const mrb_vtype_MRB_TT_ICLASS: mrb_vtype = 11;
+pub const mrb_vtype_MRB_TT_SCLASS: mrb_vtype = 12;
+pub const mrb_vtype_MRB_TT_PROC: mrb_vtype = 13;
+pub const mrb_vtype_MRB_TT_ARRAY: mrb_vtype = 14;
+pub const mrb_vtype_MRB_TT_HASH: mrb_vtype = 15;
+pub const mrb_vtype_MRB_TT_STRING: mrb_vtype = 16;
+pub const mrb_vtype_MRB_TT_RANGE: mrb_vtype = 17;
+pub const mrb_vtype_MRB_TT_EXCEPTION: mrb_vtype = 18;
+pub const mrb_vtype_MRB_TT_FILE: mrb_vtype = 19;
+pub const mrb_vtype_MRB_TT_ENV: mrb_vtype = 20;
+pub const mrb_vtype_MRB_TT_DATA: mrb_vtype = 21;
+pub const mrb_vtype_MRB_TT_FIBER: mrb_vtype = 22;
+pub const mrb_vtype_MRB_TT_ISTRUCT: mrb_vtype = 23;
+pub const mrb_vtype_MRB_TT_BREAK: mrb_vtype = 24;
+pub const mrb_vtype_MRB_TT_MAXDEFINE: mrb_vtype = 25;
+pub type mrb_vtype = u32;
+```
+
+## in `object.h`
 
 ### `RBasic`
 Hmm... I don't think, Bitfield is good, but, it's mruby developpers' decision, so I just follow it.
@@ -649,6 +761,21 @@ pub struct mrb_jmpbuf {
 # mruby functions known by Rust
 
 ## in `value.h`
+
+### [API] `mrb_float_read`
+
+```c
+MRB_API double mrb_float_read(const char*, char**);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_float_read(
+        arg1: *const ::std::os::raw::c_char,
+        arg2: *mut *mut ::std::os::raw::c_char,
+    ) -> f64;
+}
+```
 
 ### [API] `mrb_regexp_p`
 ```c
