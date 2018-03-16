@@ -27,7 +27,7 @@
 
 /*
 ** This file is combined wrapper file for bindgen.
-** handmade by kngwyu :)
+** handmade by kngwyu and maybe includes codes not necesarry to bind
  */
 #include <stdint.h>
 #include <stddef.h>
