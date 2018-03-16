@@ -696,7 +696,311 @@ pub struct mrb_state {
     pub atexit_stack_len: mrb_int,
 }
 ```
-# mruby types not known by Rust(incomplete)
+
+### `call_type`
+
+```c
+typedef enum call_type {
+  CALL_PUBLIC,
+  CALL_FCALL,
+  CALL_VCALL,
+  CALL_TYPE_MAX
+} call_type;
+```
+
+```rust
+pub const call_type_CALL_PUBLIC: call_type = 0;
+pub const call_type_CALL_FCALL: call_type = 1;
+pub const call_type_CALL_VCALL: call_type = 2;
+pub const call_type_CALL_TYPE_MAX: call_type = 3;
+pub type call_type = u32;
+```
+
+## in `compile.h`
+
+### `mrbc_context`
+
+```c
+typedef struct mrbc_context {
+  mrb_sym *syms;
+  int slen;
+  char *filename;
+  short lineno;
+  int (*partial_hook)(struct mrb_parser_state*);
+  void *partial_data;
+  struct RClass *target_class;
+  mrb_bool capture_errors:1;
+  mrb_bool dump_result:1;
+  mrb_bool no_exec:1;
+  mrb_bool keep_lv:1;
+  mrb_bool no_optimize:1;
+
+  size_t parser_nerr;
+} mrbc_context;
+```
+
+```rust
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrbc_context {
+    pub syms: *mut mrb_sym,
+    pub slen: ::std::os::raw::c_int,
+    pub filename: *mut ::std::os::raw::c_char,
+    pub lineno: ::std::os::raw::c_short,
+    pub partial_hook: ::std::option::Option<
+        unsafe extern "C" fn(arg1: *mut mrb_parser_state) -> ::std::os::raw::c_int,
+    >,
+    pub partial_data: *mut ::std::os::raw::c_void,
+    pub target_class: *mut RClass,
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize], u8>,
+    pub parser_nerr: usize,
+}
+```
+
+### `mrb_ast_node`
+
+```c
+/* AST node structure */
+typedef struct mrb_ast_node {
+  struct mrb_ast_node *car, *cdr;
+  uint16_t lineno, filename_index;
+} mrb_ast_node;
+
+```
+
+```rust
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrb_ast_node {
+    pub car: *mut mrb_ast_node,
+    pub cdr: *mut mrb_ast_node,
+    pub lineno: u16,
+    pub filename_index: u16,
+}
+```
+
+### `mrb_lex_state_enum`
+
+```c
+/* lexer states */
+enum mrb_lex_state_enum {
+  EXPR_BEG,                   /* ignore newline, +/- is a sign. */
+  EXPR_END,                   /* newline significant, +/- is an operator. */
+  EXPR_ENDARG,                /* ditto, and unbound braces. */
+  EXPR_ENDFN,                 /* ditto, and unbound braces. */
+  EXPR_ARG,                   /* newline significant, +/- is an operator. */
+  EXPR_CMDARG,                /* newline significant, +/- is an operator. */
+  EXPR_MID,                   /* newline significant, +/- is an operator. */
+  EXPR_FNAME,                 /* ignore newline, no reserved words. */
+  EXPR_DOT,                   /* right after '.' or '::', no reserved words. */
+  EXPR_CLASS,                 /* immediate after 'class', no here document. */
+  EXPR_VALUE,                 /* alike EXPR_BEG but label is disallowed. */
+  EXPR_MAX_STATE
+};
+```
+
+```rust
+pub const mrb_lex_state_enum_EXPR_BEG: mrb_lex_state_enum = 0;
+pub const mrb_lex_state_enum_EXPR_END: mrb_lex_state_enum = 1;
+pub const mrb_lex_state_enum_EXPR_ENDARG: mrb_lex_state_enum = 2;
+pub const mrb_lex_state_enum_EXPR_ENDFN: mrb_lex_state_enum = 3;
+pub const mrb_lex_state_enum_EXPR_ARG: mrb_lex_state_enum = 4;
+pub const mrb_lex_state_enum_EXPR_CMDARG: mrb_lex_state_enum = 5;
+pub const mrb_lex_state_enum_EXPR_MID: mrb_lex_state_enum = 6;
+pub const mrb_lex_state_enum_EXPR_FNAME: mrb_lex_state_enum = 7;
+pub const mrb_lex_state_enum_EXPR_DOT: mrb_lex_state_enum = 8;
+pub const mrb_lex_state_enum_EXPR_CLASS: mrb_lex_state_enum = 9;
+pub const mrb_lex_state_enum_EXPR_VALUE: mrb_lex_state_enum = 10;
+pub const mrb_lex_state_enum_EXPR_MAX_STATE: mrb_lex_state_enum = 11;
+pub type mrb_lex_state_enum = u32;
+```
+
+### `mrb_parser_message`
+
+```c
+/* saved error message */
+struct mrb_parser_message {
+  int lineno;
+  int column;
+  char* message;
+};
+```
+
+```rust
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrb_parser_message {
+    pub lineno: ::std::os::raw::c_int,
+    pub column: ::std::os::raw::c_int,
+    pub message: *mut ::std::os::raw::c_char,
+}
+```
+
+### `mrb_string_type`
+
+```c
+enum mrb_string_type {
+  str_not_parsing  = (0),
+  str_squote   = (STR_FUNC_PARSING),
+  str_dquote   = (STR_FUNC_PARSING|STR_FUNC_EXPAND),
+  str_regexp   = (STR_FUNC_PARSING|STR_FUNC_REGEXP|STR_FUNC_EXPAND),
+  str_sword    = (STR_FUNC_PARSING|STR_FUNC_WORD|STR_FUNC_ARRAY),
+  str_dword    = (STR_FUNC_PARSING|STR_FUNC_WORD|STR_FUNC_ARRAY|STR_FUNC_EXPAND),
+  str_ssym     = (STR_FUNC_PARSING|STR_FUNC_SYMBOL),
+  str_ssymbols = (STR_FUNC_PARSING|STR_FUNC_SYMBOL|STR_FUNC_ARRAY),
+  str_dsymbols = (STR_FUNC_PARSING|STR_FUNC_SYMBOL|STR_FUNC_ARRAY|STR_FUNC_EXPAND),
+  str_heredoc  = (STR_FUNC_PARSING|STR_FUNC_HEREDOC),
+  str_xquote   = (STR_FUNC_PARSING|STR_FUNC_XQUOTE|STR_FUNC_EXPAND),
+};
+```
+
+```rust
+pub const mrb_string_type_str_not_parsing: mrb_string_type = 0;
+pub const mrb_string_type_str_squote: mrb_string_type = 1;
+pub const mrb_string_type_str_dquote: mrb_string_type = 3;
+pub const mrb_string_type_str_regexp: mrb_string_type = 7;
+pub const mrb_string_type_str_sword: mrb_string_type = 41;
+pub const mrb_string_type_str_dword: mrb_string_type = 43;
+pub const mrb_string_type_str_ssym: mrb_string_type = 17;
+pub const mrb_string_type_str_ssymbols: mrb_string_type = 49;
+pub const mrb_string_type_str_dsymbols: mrb_string_type = 51;
+pub const mrb_string_type_str_heredoc: mrb_string_type = 65;
+pub const mrb_string_type_str_xquote: mrb_string_type = 131;
+pub type mrb_string_type = u32;
+```
+
+### `mrb_parser_heredoc_info`
+
+```c
+/* heredoc structure */
+struct mrb_parser_heredoc_info {
+  mrb_bool allow_indent:1;
+  mrb_bool line_head:1;
+  enum mrb_string_type type;
+  const char *term;
+  int term_len;
+  mrb_ast_node *doc;
+};
+```
+
+```rust
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrb_parser_heredoc_info {
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize], u8>,
+    pub type_: mrb_string_type,
+    pub term: *const ::std::os::raw::c_char,
+    pub term_len: ::std::os::raw::c_int,
+    pub doc: *mut mrb_ast_node,
+}
+```
+
+### `mrb_parser_state`
+
+```c
+/* parser structure */
+struct mrb_parser_state {
+  mrb_state *mrb;
+  struct mrb_pool *pool;
+  mrb_ast_node *cells;
+  const char *s, *send;
+#ifndef MRB_DISABLE_STDIO
+  FILE *f;
+#endif
+  mrbc_context *cxt;
+  char const *filename;
+  int lineno;
+  int column;
+
+  enum mrb_lex_state_enum lstate;
+  mrb_ast_node *lex_strterm; /* (type nest_level beg . end) */
+
+  unsigned int cond_stack;
+  unsigned int cmdarg_stack;
+  int paren_nest;
+  int lpar_beg;
+  int in_def, in_single;
+  mrb_bool cmd_start:1;
+  mrb_ast_node *locals;
+
+  mrb_ast_node *pb;
+  char *tokbuf;
+  char buf[MRB_PARSER_TOKBUF_SIZE];
+  int tidx;
+  int tsiz;
+
+  mrb_ast_node *all_heredocs; /* list of mrb_parser_heredoc_info* */
+  mrb_ast_node *heredocs_from_nextline;
+  mrb_ast_node *parsing_heredoc;
+  mrb_ast_node *lex_strterm_before_heredoc;
+  mrb_bool heredoc_end_now:1; /* for mirb */
+
+  void *ylval;
+
+  size_t nerr;
+  size_t nwarn;
+  mrb_ast_node *tree;
+
+  mrb_bool no_optimize:1;
+  mrb_bool capture_errors:1;
+  struct mrb_parser_message error_buffer[10];
+  struct mrb_parser_message warn_buffer[10];
+
+  mrb_sym* filename_table;
+  size_t filename_table_length;
+  int current_filename_index;
+
+  struct mrb_jmpbuf* jmp;
+};
+```
+
+```rust
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct mrb_parser_state {
+    pub mrb: *mut mrb_state,
+    pub pool: *mut mrb_pool,
+    pub cells: *mut mrb_ast_node,
+    pub s: *const ::std::os::raw::c_char,
+    pub send: *const ::std::os::raw::c_char,
+    pub f: *mut FILE,
+    pub cxt: *mut mrbc_context,
+    pub filename: *const ::std::os::raw::c_char,
+    pub lineno: ::std::os::raw::c_int,
+    pub column: ::std::os::raw::c_int,
+    pub lstate: mrb_lex_state_enum,
+    pub lex_strterm: *mut mrb_ast_node,
+    pub cond_stack: ::std::os::raw::c_uint,
+    pub cmdarg_stack: ::std::os::raw::c_uint,
+    pub paren_nest: ::std::os::raw::c_int,
+    pub lpar_beg: ::std::os::raw::c_int,
+    pub in_def: ::std::os::raw::c_int,
+    pub in_single: ::std::os::raw::c_int,
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize], u8>,
+    pub locals: *mut mrb_ast_node,
+    pub pb: *mut mrb_ast_node,
+    pub tokbuf: *mut ::std::os::raw::c_char,
+    pub buf: [::std::os::raw::c_char; 256usize],
+    pub tidx: ::std::os::raw::c_int,
+    pub tsiz: ::std::os::raw::c_int,
+    pub all_heredocs: *mut mrb_ast_node,
+    pub heredocs_from_nextline: *mut mrb_ast_node,
+    pub parsing_heredoc: *mut mrb_ast_node,
+    pub lex_strterm_before_heredoc: *mut mrb_ast_node,
+    pub _bitfield_2: __BindgenBitfieldUnit<[u8; 1usize], u8>,
+    pub ylval: *mut ::std::os::raw::c_void,
+    pub nerr: usize,
+    pub nwarn: usize,
+    pub tree: *mut mrb_ast_node,
+    pub _bitfield_3: __BindgenBitfieldUnit<[u8; 1usize], u8>,
+    pub error_buffer: [mrb_parser_message; 10usize],
+    pub warn_buffer: [mrb_parser_message; 10usize],
+    pub filename_table: *mut mrb_sym,
+    pub filename_table_length: usize,
+    pub current_filename_index: ::std::os::raw::c_int,
+    pub jmp: *mut mrb_jmpbuf,
+}
+```
 
 ## in `irep.h`
 
@@ -1901,4 +2205,853 @@ extern "C" {
  * @return [mrb_sym] mrb_sym A symbol.
  */
 MRB_API mrb_sym mrb_intern_cstr(mrb_state*,const char*);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_intern_cstr(arg1: *mut mrb_state, arg2: *const ::std::os::raw::c_char) -> mrb_sym;
+}
+```
+
+### [API] `mrb_intern` and allocators
+
+(TODO) separate document
+```c
+MRB_API mrb_sym mrb_intern(mrb_state*,const char*,size_t);
+MRB_API mrb_sym mrb_intern_static(mrb_state*,const char*,size_t);
+#define mrb_intern_lit(mrb, lit) mrb_intern_static(mrb, lit, mrb_strlen_lit(lit))
+MRB_API mrb_sym mrb_intern_str(mrb_state*,mrb_value);
+MRB_API mrb_value mrb_check_intern_cstr(mrb_state*,const char*);
+MRB_API mrb_value mrb_check_intern(mrb_state*,const char*,size_t);
+MRB_API mrb_value mrb_check_intern_str(mrb_state*,mrb_value);
+MRB_API const char *mrb_sym2name(mrb_state*,mrb_sym);
+MRB_API const char *mrb_sym2name_len(mrb_state*,mrb_sym,mrb_int*);
+MRB_API mrb_value mrb_sym2str(mrb_state*,mrb_sym);
+
+MRB_API void *mrb_malloc(mrb_state*, size_t);         /* raise RuntimeError if no mem */
+MRB_API void *mrb_calloc(mrb_state*, size_t, size_t); /* ditto */
+MRB_API void *mrb_realloc(mrb_state*, void*, size_t); /* ditto */
+MRB_API void *mrb_realloc_simple(mrb_state*, void*, size_t); /* return NULL if no memory available */
+MRB_API void *mrb_malloc_simple(mrb_state*, size_t);  /* return NULL if no memory available */
+MRB_API struct RBasic *mrb_obj_alloc(mrb_state*, enum mrb_vtype, struct RClass*);
+MRB_API void mrb_free(mrb_state*, void*);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_intern(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+        arg3: usize,
+    ) -> mrb_sym;
+}
+extern "C" {
+    pub fn mrb_intern_static(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+        arg3: usize,
+    ) -> mrb_sym;
+}
+extern "C" {
+    pub fn mrb_intern_str(arg1: *mut mrb_state, arg2: mrb_value) -> mrb_sym;
+}
+extern "C" {
+    pub fn mrb_check_intern_cstr(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_check_intern(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+        arg3: usize,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_check_intern_str(arg1: *mut mrb_state, arg2: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_sym2name(arg1: *mut mrb_state, arg2: mrb_sym) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrb_sym2name_len(
+        arg1: *mut mrb_state,
+        arg2: mrb_sym,
+        arg3: *mut mrb_int,
+    ) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrb_sym2str(arg1: *mut mrb_state, arg2: mrb_sym) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_malloc(arg1: *mut mrb_state, arg2: usize) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_calloc(
+        arg1: *mut mrb_state,
+        arg2: usize,
+        arg3: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_realloc(
+        arg1: *mut mrb_state,
+        arg2: *mut ::std::os::raw::c_void,
+        arg3: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_realloc_simple(
+        arg1: *mut mrb_state,
+        arg2: *mut ::std::os::raw::c_void,
+        arg3: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_malloc_simple(arg1: *mut mrb_state, arg2: usize) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_obj_alloc(arg1: *mut mrb_state, arg2: mrb_vtype, arg3: *mut RClass) -> *mut RBasic;
+}
+extern "C" {
+    pub fn mrb_free(arg1: *mut mrb_state, arg2: *mut ::std::os::raw::c_void);
+}
+```
+
+### [API] string apis
+
+```c
+MRB_API mrb_value mrb_str_new(mrb_state *mrb, const char *p, size_t len);
+
+/**
+ * Turns a C string into a Ruby string value.
+ */
+MRB_API mrb_value mrb_str_new_cstr(mrb_state*, const char*);
+MRB_API mrb_value mrb_str_new_static(mrb_state *mrb, const char *p, size_t len);
+```
+
+```c
+extern "C" {
+    pub fn mrb_str_new(
+        mrb: *mut mrb_state,
+        p: *const ::std::os::raw::c_char,
+        len: usize,
+    ) -> mrb_value;
+}
+extern "C" {
+    /// Turns a C string into a Ruby string value.
+    pub fn mrb_str_new_cstr(arg1: *mut mrb_state, arg2: *const ::std::os::raw::c_char)
+        -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_str_new_static(
+        mrb: *mut mrb_state,
+        p: *const ::std::os::raw::c_char,
+        len: usize,
+    ) -> mrb_value;
+}
+```
+
+### [API] `mrb_open` and related APIs
+
+```c
+/**
+ * Creates new mrb_state.
+ *
+ * @return
+ *      Pointer to the newly created mrb_state.
+ */
+MRB_API mrb_state* mrb_open(void);
+
+/**
+ * Create new mrb_state with custom allocators.
+ *
+ * @param f
+ *      Reference to the allocation function.
+ * @param ud
+ *      User data will be passed to custom allocator f.
+ *      If user data isn't required just pass NULL.
+ * @return
+ *      Pointer to the newly created mrb_state.
+ */
+MRB_API mrb_state* mrb_open_allocf(mrb_allocf f, void *ud);
+
+/**
+ * Create new mrb_state with just the MRuby core
+ *
+ * @param f
+ *      Reference to the allocation function.
+ *      Use mrb_default_allocf for the default
+ * @param ud
+ *      User data will be passed to custom allocator f.
+ *      If user data isn't required just pass NULL.
+ * @return
+ *      Pointer to the newly created mrb_state.
+ */
+MRB_API mrb_state* mrb_open_core(mrb_allocf f, void *ud);
+
+/**
+ * Closes and frees a mrb_state.
+ *
+ * @param mrb
+ *      Pointer to the mrb_state to be closed.
+ */
+MRB_API void mrb_close(mrb_state *mrb);
+
+/**
+ * The default allocation function.
+ *
+ * @see mrb_allocf
+ */
+MRB_API void* mrb_default_allocf(mrb_state*, void*, size_t, void*);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_open() -> *mut mrb_state;
+}
+extern "C" {
+    pub fn mrb_open_allocf(f: mrb_allocf, ud: *mut ::std::os::raw::c_void) -> *mut mrb_state;
+}
+extern "C" {
+    pub fn mrb_open_core(f: mrb_allocf, ud: *mut ::std::os::raw::c_void) -> *mut mrb_state;
+}
+extern "C" {
+    pub fn mrb_close(mrb: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_default_allocf(
+        arg1: *mut mrb_state,
+        arg2: *mut ::std::os::raw::c_void,
+        arg3: usize,
+        arg4: *mut ::std::os::raw::c_void,
+    ) -> *mut ::std::os::raw::c_void;
+}
+```
+
+### [API] other APIs
+
+```c
+MRB_API mrb_value mrb_top_self(mrb_state *);
+MRB_API mrb_value mrb_run(mrb_state*, struct RProc*, mrb_value);
+MRB_API mrb_value mrb_top_run(mrb_state*, struct RProc*, mrb_value, unsigned int);
+MRB_API mrb_value mrb_vm_run(mrb_state*, struct RProc*, mrb_value, unsigned int);
+MRB_API mrb_value mrb_vm_exec(mrb_state*, struct RProc*, mrb_code*);
+/* compatibility macros */
+#define mrb_toplevel_run_keep(m,p,k) mrb_top_run((m),(p),mrb_top_self(m),(k))
+#define mrb_toplevel_run(m,p) mrb_toplevel_run_keep((m),(p),0)
+#define mrb_context_run(m,p,s,k) mrb_vm_run((m),(p),(s),(k))
+
+MRB_API void mrb_p(mrb_state*, mrb_value);
+MRB_API mrb_int mrb_obj_id(mrb_value obj);
+MRB_API mrb_sym mrb_obj_to_sym(mrb_state *mrb, mrb_value name);
+
+MRB_API mrb_bool mrb_obj_eq(mrb_state*, mrb_value, mrb_value);
+MRB_API mrb_bool mrb_obj_equal(mrb_state*, mrb_value, mrb_value);
+MRB_API mrb_bool mrb_equal(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
+MRB_API mrb_value mrb_convert_to_integer(mrb_state *mrb, mrb_value val, mrb_int base);
+MRB_API mrb_value mrb_Integer(mrb_state *mrb, mrb_value val);
+#ifndef MRB_WITHOUT_FLOAT
+MRB_API mrb_value mrb_Float(mrb_state *mrb, mrb_value val);
+#endif
+MRB_API mrb_value mrb_inspect(mrb_state *mrb, mrb_value obj);
+MRB_API mrb_bool mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_top_self(arg1: *mut mrb_state) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_run(arg1: *mut mrb_state, arg2: *mut RProc, arg3: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_top_run(
+        arg1: *mut mrb_state,
+        arg2: *mut RProc,
+        arg3: mrb_value,
+        arg4: ::std::os::raw::c_uint,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_vm_run(
+        arg1: *mut mrb_state,
+        arg2: *mut RProc,
+        arg3: mrb_value,
+        arg4: ::std::os::raw::c_uint,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_vm_exec(arg1: *mut mrb_state, arg2: *mut RProc, arg3: *mut mrb_code) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_p(arg1: *mut mrb_state, arg2: mrb_value);
+}
+extern "C" {
+    pub fn mrb_obj_id(obj: mrb_value) -> mrb_int;
+}
+extern "C" {
+    pub fn mrb_obj_to_sym(mrb: *mut mrb_state, name: mrb_value) -> mrb_sym;
+}
+extern "C" {
+    pub fn mrb_obj_eq(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_value) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_obj_equal(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_value) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_equal(mrb: *mut mrb_state, obj1: mrb_value, obj2: mrb_value) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_convert_to_integer(mrb: *mut mrb_state, val: mrb_value, base: mrb_int) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_Integer(mrb: *mut mrb_state, val: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_Float(mrb: *mut mrb_state, val: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_inspect(mrb: *mut mrb_state, obj: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_eql(mrb: *mut mrb_state, obj1: mrb_value, obj2: mrb_value) -> mrb_bool;
+}
+```
+
+### [API] gc
+
+```c
+MRB_API void mrb_garbage_collect(mrb_state*);
+MRB_API void mrb_full_gc(mrb_state*);
+MRB_API void mrb_incremental_gc(mrb_state *);
+MRB_API void mrb_gc_mark(mrb_state*,struct RBasic*);
+#define mrb_gc_mark_value(mrb,val) do {\
+  if (!mrb_immediate_p(val)) mrb_gc_mark((mrb), mrb_basic_ptr(val)); \
+} while (0)
+MRB_API void mrb_field_write_barrier(mrb_state *, struct RBasic*, struct RBasic*);
+#define mrb_field_write_barrier_value(mrb, obj, val) do{\
+  if (!mrb_immediate_p(val)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val)); \
+} while (0)
+MRB_API void mrb_write_barrier(mrb_state *, struct RBasic*);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_garbage_collect(arg1: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_full_gc(arg1: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_incremental_gc(arg1: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_gc_mark(arg1: *mut mrb_state, arg2: *mut RBasic);
+}
+extern "C" {
+    pub fn mrb_field_write_barrier(arg1: *mut mrb_state, arg2: *mut RBasic, arg3: *mut RBasic);
+}
+extern "C" {
+    pub fn mrb_write_barrier(arg1: *mut mrb_state, arg2: *mut RBasic);
+}
+```
+
+### [API] object
+
+```c
+MRB_API mrb_value mrb_check_convert_type(mrb_state *mrb, mrb_value val, enum mrb_vtype type, const char *tname, const char *method);
+MRB_API mrb_value mrb_any_to_s(mrb_state *mrb, mrb_value obj);
+MRB_API const char * mrb_obj_classname(mrb_state *mrb, mrb_value obj);
+MRB_API struct RClass* mrb_obj_class(mrb_state *mrb, mrb_value obj);
+MRB_API mrb_value mrb_class_path(mrb_state *mrb, struct RClass *c);
+MRB_API mrb_value mrb_convert_type(mrb_state *mrb, mrb_value val, enum mrb_vtype type, const char *tname, const char *method);
+MRB_API mrb_bool mrb_obj_is_kind_of(mrb_state *mrb, mrb_value obj, struct RClass *c);
+MRB_API mrb_value mrb_obj_inspect(mrb_state *mrb, mrb_value self);
+MRB_API mrb_value mrb_obj_clone(mrb_state *mrb, mrb_value self);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_check_convert_type(
+        mrb: *mut mrb_state,
+        val: mrb_value,
+        type_: mrb_vtype,
+        tname: *const ::std::os::raw::c_char,
+        method: *const ::std::os::raw::c_char,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_any_to_s(mrb: *mut mrb_state, obj: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_obj_classname(mrb: *mut mrb_state, obj: mrb_value) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrb_obj_class(mrb: *mut mrb_state, obj: mrb_value) -> *mut RClass;
+}
+extern "C" {
+    pub fn mrb_class_path(mrb: *mut mrb_state, c: *mut RClass) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_convert_type(
+        mrb: *mut mrb_state,
+        val: mrb_value,
+        type_: mrb_vtype,
+        tname: *const ::std::os::raw::c_char,
+        method: *const ::std::os::raw::c_char,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_obj_is_kind_of(mrb: *mut mrb_state, obj: mrb_value, c: *mut RClass) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_obj_inspect(mrb: *mut mrb_state, self_: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_obj_clone(mrb: *mut mrb_state, self_: mrb_value) -> mrb_value;
+}
+```
+
+### [API] raise bug & print
+
+```c
+MRB_API mrb_value mrb_exc_new(mrb_state *mrb, struct RClass *c, const char *ptr, size_t len);
+MRB_API mrb_noreturn void mrb_exc_raise(mrb_state *mrb, mrb_value exc);
+
+MRB_API mrb_noreturn void mrb_raise(mrb_state *mrb, struct RClass *c, const char *msg);
+MRB_API mrb_noreturn void mrb_raisef(mrb_state *mrb, struct RClass *c, const char *fmt, ...);
+MRB_API mrb_noreturn void mrb_name_error(mrb_state *mrb, mrb_sym id, const char *fmt, ...);
+MRB_API void mrb_warn(mrb_state *mrb, const char *fmt, ...);
+MRB_API mrb_noreturn void mrb_bug(mrb_state *mrb, const char *fmt, ...);
+MRB_API void mrb_print_backtrace(mrb_state *mrb);
+MRB_API void mrb_print_error(mrb_state *mrb);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_exc_new(
+        mrb: *mut mrb_state,
+        c: *mut RClass,
+        ptr: *const ::std::os::raw::c_char,
+        len: usize,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_exc_raise(mrb: *mut mrb_state, exc: mrb_value);
+}
+extern "C" {
+    pub fn mrb_raise(mrb: *mut mrb_state, c: *mut RClass, msg: *const ::std::os::raw::c_char);
+}
+extern "C" {
+    pub fn mrb_raisef(mrb: *mut mrb_state, c: *mut RClass, fmt: *const ::std::os::raw::c_char, ...);
+}
+extern "C" {
+    pub fn mrb_name_error(
+        mrb: *mut mrb_state,
+        id: mrb_sym,
+        fmt: *const ::std::os::raw::c_char,
+        ...
+    );
+}
+extern "C" {
+    pub fn mrb_warn(mrb: *mut mrb_state, fmt: *const ::std::os::raw::c_char, ...);
+}
+extern "C" {
+    pub fn mrb_bug(mrb: *mut mrb_state, fmt: *const ::std::os::raw::c_char, ...);
+}
+extern "C" {
+    pub fn mrb_print_backtrace(mrb: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_print_error(mrb: *mut mrb_state);
+}
+```
+
+### [API] yield & others
+
+```c
+
+MRB_API mrb_value mrb_yield(mrb_state *mrb, mrb_value b, mrb_value arg);
+MRB_API mrb_value mrb_yield_argv(mrb_state *mrb, mrb_value b, mrb_int argc, const mrb_value *argv);
+MRB_API mrb_value mrb_yield_with_class(mrb_state *mrb, mrb_value b, mrb_int argc, const mrb_value *argv, mrb_value self, struct RClass *c);
+
+/* continue execution to the proc */
+/* this function should always be called as the last function of a method */
+/* e.g. return mrb_yield_cont(mrb, proc, self, argc, argv); */
+mrb_value mrb_yield_cont(mrb_state *mrb, mrb_value b, mrb_value self, mrb_int argc, const mrb_value *argv);
+
+/* mrb_gc_protect() leaves the object in the arena */
+MRB_API void mrb_gc_protect(mrb_state *mrb, mrb_value obj);
+/* mrb_gc_register() keeps the object from GC. */
+MRB_API void mrb_gc_register(mrb_state *mrb, mrb_value obj);
+/* mrb_gc_unregister() removes the object from GC root. */
+MRB_API void mrb_gc_unregister(mrb_state *mrb, mrb_value obj);
+
+MRB_API mrb_value mrb_to_int(mrb_state *mrb, mrb_value val);
+#define mrb_int(mrb, val) mrb_fixnum(mrb_to_int(mrb, val))
+MRB_API void mrb_check_type(mrb_state *mrb, mrb_value x, enum mrb_vtype t);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_yield(mrb: *mut mrb_state, b: mrb_value, arg: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_yield_argv(
+        mrb: *mut mrb_state,
+        b: mrb_value,
+        argc: mrb_int,
+        argv: *const mrb_value,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_yield_with_class(
+        mrb: *mut mrb_state,
+        b: mrb_value,
+        argc: mrb_int,
+        argv: *const mrb_value,
+        self_: mrb_value,
+        c: *mut RClass,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_yield_cont(
+        mrb: *mut mrb_state,
+        b: mrb_value,
+        self_: mrb_value,
+        argc: mrb_int,
+        argv: *const mrb_value,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_gc_protect(mrb: *mut mrb_state, obj: mrb_value);
+}
+extern "C" {
+    pub fn mrb_gc_register(mrb: *mut mrb_state, obj: mrb_value);
+}
+extern "C" {
+    pub fn mrb_gc_unregister(mrb: *mut mrb_state, obj: mrb_value);
+}
+extern "C" {
+    pub fn mrb_to_int(mrb: *mut mrb_state, val: mrb_value) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_check_type(mrb: *mut mrb_state, x: mrb_value, t: mrb_vtype);
+}
+```
+
+### [API] `mrb_define_alias` and others
+
+```c
+MRB_API void mrb_define_alias(mrb_state *mrb, struct RClass *klass, const char *name1, const char *name2);
+MRB_API const char *mrb_class_name(mrb_state *mrb, struct RClass* klass);
+MRB_API void mrb_define_global_const(mrb_state *mrb, const char *name, mrb_value val);
+
+MRB_API mrb_value mrb_attr_get(mrb_state *mrb, mrb_value obj, mrb_sym id);
+
+MRB_API mrb_bool mrb_respond_to(mrb_state *mrb, mrb_value obj, mrb_sym mid);
+MRB_API mrb_bool mrb_obj_is_instance_of(mrb_state *mrb, mrb_value obj, struct RClass* c);
+MRB_API mrb_bool mrb_func_basic_p(mrb_state *mrb, mrb_value obj, mrb_sym mid, mrb_func_t func);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_define_alias(
+        mrb: *mut mrb_state,
+        klass: *mut RClass,
+        name1: *const ::std::os::raw::c_char,
+        name2: *const ::std::os::raw::c_char,
+    );
+}
+extern "C" {
+    pub fn mrb_class_name(mrb: *mut mrb_state, klass: *mut RClass)
+        -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrb_define_global_const(
+        mrb: *mut mrb_state,
+        name: *const ::std::os::raw::c_char,
+        val: mrb_value,
+    );
+}
+extern "C" {
+    pub fn mrb_attr_get(mrb: *mut mrb_state, obj: mrb_value, id: mrb_sym) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_respond_to(mrb: *mut mrb_state, obj: mrb_value, mid: mrb_sym) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_obj_is_instance_of(mrb: *mut mrb_state, obj: mrb_value, c: *mut RClass) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_func_basic_p(
+        mrb: *mut mrb_state,
+        obj: mrb_value,
+        mid: mrb_sym,
+        func: mrb_func_t,
+    ) -> mrb_bool;
+}
+```
+
+### [API] other APIs
+
+```c
+/*
+ * Resume a Fiber
+ *
+ * @mrbgem mruby-fiber
+ */
+MRB_API mrb_value mrb_fiber_resume(mrb_state *mrb, mrb_value fib, mrb_int argc, const mrb_value *argv);
+
+/*
+ * Yield a Fiber
+ *
+ * @mrbgem mruby-fiber
+ */
+MRB_API mrb_value mrb_fiber_yield(mrb_state *mrb, mrb_int argc, const mrb_value *argv);
+
+/*
+ * FiberError reference
+ *
+ * @mrbgem mruby-fiber
+ */
+#define E_FIBER_ERROR (mrb_exc_get(mrb, "FiberError"))
+
+/* memory pool implementation */
+typedef struct mrb_pool mrb_pool;
+MRB_API struct mrb_pool* mrb_pool_open(mrb_state*);
+MRB_API void mrb_pool_close(struct mrb_pool*);
+MRB_API void* mrb_pool_alloc(struct mrb_pool*, size_t);
+MRB_API void* mrb_pool_realloc(struct mrb_pool*, void*, size_t oldlen, size_t newlen);
+MRB_API mrb_bool mrb_pool_can_realloc(struct mrb_pool*, void*, size_t);
+MRB_API void* mrb_alloca(mrb_state *mrb, size_t);
+
+MRB_API void mrb_state_atexit(mrb_state *mrb, mrb_atexit_func func);
+
+MRB_API void mrb_show_version(mrb_state *mrb);
+MRB_API void mrb_show_copyright(mrb_state *mrb);
+
+MRB_API mrb_value mrb_format(mrb_state *mrb, const char *format, ...);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_fiber_resume(
+        mrb: *mut mrb_state,
+        fib: mrb_value,
+        argc: mrb_int,
+        argv: *const mrb_value,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_fiber_yield(mrb: *mut mrb_state, argc: mrb_int, argv: *const mrb_value)
+        -> mrb_value;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mrb_pool {
+    _unused: [u8; 0],
+}
+extern "C" {
+    pub fn mrb_pool_open(arg1: *mut mrb_state) -> *mut mrb_pool;
+}
+extern "C" {
+    pub fn mrb_pool_close(arg1: *mut mrb_pool);
+}
+extern "C" {
+    pub fn mrb_pool_alloc(arg1: *mut mrb_pool, arg2: usize) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_pool_realloc(
+        arg1: *mut mrb_pool,
+        arg2: *mut ::std::os::raw::c_void,
+        oldlen: usize,
+        newlen: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_pool_can_realloc(
+        arg1: *mut mrb_pool,
+        arg2: *mut ::std::os::raw::c_void,
+        arg3: usize,
+    ) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_alloca(mrb: *mut mrb_state, arg1: usize) -> *mut ::std::os::raw::c_void;
+}
+extern "C" {
+    pub fn mrb_state_atexit(mrb: *mut mrb_state, func: mrb_atexit_func);
+}
+extern "C" {
+    pub fn mrb_show_version(mrb: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_show_copyright(mrb: *mut mrb_state);
+}
+extern "C" {
+    pub fn mrb_format(mrb: *mut mrb_state, format: *const ::std::os::raw::c_char, ...)
+        -> mrb_value;
+}
+```
+
+## in `compile.h`
+
+### [API]  `mrbc_context_new` and etc.
+
+```c
+MRB_API mrbc_context* mrbc_context_new(mrb_state *mrb);
+MRB_API void mrbc_context_free(mrb_state *mrb, mrbc_context *cxt);
+MRB_API const char *mrbc_filename(mrb_state *mrb, mrbc_context *c, const char *s);
+MRB_API void mrbc_partial_hook(mrb_state *mrb, mrbc_context *c, int (*partial_hook)(struct mrb_parser_state*), void*data);
+```
+
+```rust
+extern "C" {
+    pub fn mrbc_context_new(mrb: *mut mrb_state) -> *mut mrbc_context;
+}
+extern "C" {
+    pub fn mrbc_context_free(mrb: *mut mrb_state, cxt: *mut mrbc_context);
+}
+extern "C" {
+    pub fn mrbc_filename(
+        mrb: *mut mrb_state,
+        c: *mut mrbc_context,
+        s: *const ::std::os::raw::c_char,
+    ) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrbc_partial_hook(
+        mrb: *mut mrb_state,
+        c: *mut mrbc_context,
+        partial_hook: ::std::option::Option<
+            unsafe extern "C" fn(arg1: *mut mrb_parser_state) -> ::std::os::raw::c_int,
+        >,
+        data: *mut ::std::os::raw::c_void,
+    );
+}
+```
+
+### [API] parse
+
+```c
+MRB_API struct mrb_parser_state* mrb_parser_new(mrb_state*);
+MRB_API void mrb_parser_free(struct mrb_parser_state*);
+MRB_API void mrb_parser_parse(struct mrb_parser_state*,mrbc_context*);
+
+MRB_API void mrb_parser_set_filename(struct mrb_parser_state*, char const*);
+MRB_API char const* mrb_parser_get_filename(struct mrb_parser_state*, uint16_t idx);
+
+/* utility functions */
+#ifndef MRB_DISABLE_STDIO
+MRB_API struct mrb_parser_state* mrb_parse_file(mrb_state*,FILE*,mrbc_context*);
+#endif
+MRB_API struct mrb_parser_state* mrb_parse_string(mrb_state*,const char*,mrbc_context*);
+MRB_API struct mrb_parser_state* mrb_parse_nstring(mrb_state*,const char*,size_t,mrbc_context*);
+MRB_API struct RProc* mrb_generate_code(mrb_state*, struct mrb_parser_state*);
+MRB_API mrb_value mrb_load_exec(mrb_state *mrb, struct mrb_parser_state *p, mrbc_context *c);
+
+/* program load functions */
+#ifndef MRB_DISABLE_STDIO
+MRB_API mrb_value mrb_load_file(mrb_state*,FILE*);
+MRB_API mrb_value mrb_load_file_cxt(mrb_state*,FILE*, mrbc_context *cxt);
+#endif
+MRB_API mrb_value mrb_load_string(mrb_state *mrb, const char *s);
+MRB_API mrb_value mrb_load_nstring(mrb_state *mrb, const char *s, size_t len);
+MRB_API mrb_value mrb_load_string_cxt(mrb_state *mrb, const char *s, mrbc_context *cxt);
+MRB_API mrb_value mrb_load_nstring_cxt(mrb_state *mrb, const char *s, size_t len, mrbc_context *cxt);
+
+```
+
+
+```rust
+extern "C" {
+    pub fn mrb_parser_new(arg1: *mut mrb_state) -> *mut mrb_parser_state;
+}
+extern "C" {
+    pub fn mrb_parser_free(arg1: *mut mrb_parser_state);
+}
+extern "C" {
+    pub fn mrb_parser_parse(arg1: *mut mrb_parser_state, arg2: *mut mrbc_context);
+}
+extern "C" {
+    pub fn mrb_parser_set_filename(
+        arg1: *mut mrb_parser_state,
+        arg2: *const ::std::os::raw::c_char,
+    );
+}
+extern "C" {
+    pub fn mrb_parser_get_filename(
+        arg1: *mut mrb_parser_state,
+        idx: u16,
+    ) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    pub fn mrb_parse_file(
+        arg1: *mut mrb_state,
+        arg2: *mut FILE,
+        arg3: *mut mrbc_context,
+    ) -> *mut mrb_parser_state;
+}
+extern "C" {
+    pub fn mrb_parse_string(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+        arg3: *mut mrbc_context,
+    ) -> *mut mrb_parser_state;
+}
+extern "C" {
+    pub fn mrb_parse_nstring(
+        arg1: *mut mrb_state,
+        arg2: *const ::std::os::raw::c_char,
+        arg3: usize,
+        arg4: *mut mrbc_context,
+    ) -> *mut mrb_parser_state;
+}
+extern "C" {
+    pub fn mrb_generate_code(arg1: *mut mrb_state, arg2: *mut mrb_parser_state) -> *mut RProc;
+}
+extern "C" {
+    pub fn mrb_load_exec(
+        mrb: *mut mrb_state,
+        p: *mut mrb_parser_state,
+        c: *mut mrbc_context,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_file(arg1: *mut mrb_state, arg2: *mut FILE) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_file_cxt(
+        arg1: *mut mrb_state,
+        arg2: *mut FILE,
+        cxt: *mut mrbc_context,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_string(mrb: *mut mrb_state, s: *const ::std::os::raw::c_char) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_nstring(
+        mrb: *mut mrb_state,
+        s: *const ::std::os::raw::c_char,
+        len: usize,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_string_cxt(
+        mrb: *mut mrb_state,
+        s: *const ::std::os::raw::c_char,
+        cxt: *mut mrbc_context,
+    ) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_load_nstring_cxt(
+        mrb: *mut mrb_state,
+        s: *const ::std::os::raw::c_char,
+        len: usize,
+        cxt: *mut mrbc_context,
+    ) -> mrb_value;
+}
 ```
