@@ -48,6 +48,7 @@ MRuby::Build.new do |conf|
   end
   enable_debug
   conf.gembox 'default'
+  conf.cc.defines = %w(MRB_ENABLE_DEBUG_HOOK)
   conf.bins = []
 end
 "#;
