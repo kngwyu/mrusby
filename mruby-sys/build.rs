@@ -54,11 +54,6 @@ end
 
 fn build_mruby() -> Result<(), BuildError> {
     let out_path = PathBuf::from(env::var("OUT_DIR")?);
-    let rake_file = if let Ok(f) = env::var("MRUSBY_RAKE_FILE") {
-        f
-    } else {
-        "Rakefile".to_owned()
-    };
     let config_file = if let Ok(f) = env::var("MRUSBY_CONFIG") {
         PathBuf::from(&f)
     } else {
@@ -80,8 +75,6 @@ fn build_mruby() -> Result<(), BuildError> {
     let status = Command::new("ruby")
         .current_dir("mruby/")
         .arg("./minirake")
-        .arg("--rakefile")
-        .arg(&rake_file)
         .env("MRUBY_BUILD_DIR", &out_path)
         .env("MRUBY_CONFIG", &config_file)
         .status()?;

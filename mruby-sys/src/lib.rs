@@ -45,10 +45,10 @@ mod api_call_test {
         assert!(mrb != ptr::null_mut());
         let cxt = compiler_context(mrb);
         let s = r#"
-config = {}
-config[:a] = 100
-config[:b] = "Hello"
-"#;
+    config = {}
+    config[:a] = 100
+    config[:b] = "Hello"
+    "#;
         unsafe {
             let s = s.as_ptr() as *const c_char;
             mrb_load_string_cxt(mrb, s, cxt);
