@@ -111,16 +111,6 @@ use utf8 string
 ## default
 None
 
-
-# `MRB_UTF8_STRING`
-
-## value
-decalred or
-## description
-use utf8 string
-## default
-None
-
 # `MRB_FUNCALL_ARGC_MAX`
 
 ## value 

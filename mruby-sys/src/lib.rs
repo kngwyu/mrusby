@@ -27,11 +27,13 @@ mod api_call_test {
     }
 
     #[test]
-    #[ignore]
     fn hello_world() {
         let mrb = mruby_open();
         assert!(mrb != ptr::null_mut());
-        let s = "puts 'hello world'";
+        let s = r"
+s = 'あいうえお'
+puts s[1]
+";
         unsafe {
             let s = s.as_bytes().as_ptr() as *const c_char;
             mrb_load_string(mrb, s);

@@ -8,3 +8,11 @@ build = "build.rs"
 
 [build-dependencies]
 bindgen = "0.33"
+
+[features]
+default = ["utf8-string", "method-cache", "default-gembox"]
+int-64 = []
+float-32 = []
+utf8-string = []
+method-cache = []
+default-gembox = []
