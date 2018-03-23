@@ -3,7 +3,19 @@ name = "mrusby"
 version = "0.0.1"
 authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
 
+[features]
+default = ["utf8-string", "method-cache", "default-gembox"]
+int-64 = ["mruby-sys/int-64"]
+float-32 = ["mruby-sys/float-32"]
+utf8-string = ["mruby-sys/utf8-string"]
+method-cache = ["mruby-sys/method-cache"]
+default-gembox = ["mruby-sys/default-gembox"]
+
 [dependencies]
+
+[dependencies.mruby-sys]
+path = "mruby-sys"
+version = "0.0.1"
 
 [workspace]
 members = ["mruby-sys"]
