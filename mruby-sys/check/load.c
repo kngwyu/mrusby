@@ -12,8 +12,13 @@ int main() {
     LOAD("config[:b] = 'Hello'");
     mrb_value a = LOAD("config[:a]");
     printf("%ld\n", a.value.i);
+    LOAD("b = 4");
+    LOAD("c = 10");
+    LOAD("d = 20");
     mrb_value config = LOAD("config");
     printf("%d\n", config.tt);
+    mrb_value len = mrb_funcall(mrb, config, "size", 0, 0);
+    printf("%d\n", len.value.i);
     struct Rhash* hash = config.value.p;
     mrb_value keys = mrb_hash_keys(mrb, config);
     printf("%d\n", keys.tt);
