@@ -54,9 +54,6 @@ puts s[1]
         unsafe {
             let s = s.as_ptr() as *const c_char;
             mrb_load_string_cxt(mrb, s, cxt);
-            let a = mrb_load_string_cxt(mrb, "config[:a]".as_ptr() as *const c_char, cxt);
-            assert_eq!(a.value.i, 100);
-            assert_eq!(a.tt, mrb_vtype_MRB_TT_FIXNUM);
             let config = mrb_load_string_cxt(mrb, "config".as_ptr() as *const c_char, cxt);
             assert_eq!(config.tt, mrb_vtype_MRB_TT_HASH);
             let size = mrb_funcall(mrb, config, "size".as_ptr() as *const c_char, 0, 0);
