@@ -27,7 +27,7 @@
 
 /*
 ** This file is combined wrapper file for bindgen.
-** handmade by kngwyu and maybe includes codes not necesarry to bind
+** handmade by kngwyu and maybe includes unnecesarry parts
  */
 
 /* start mruby.h */
@@ -2277,3 +2277,1711 @@ MRB_API mrb_value mrb_load_nstring_cxt(mrb_state *mrb, const char *s, size_t len
 MRB_END_DECL
 
 /* end mruby/compile.h */
+
+/* start mruby/kash.h */
+#include <string.h>
+/**
+ * khash definitions used in mruby's hash table.
+ */
+MRB_BEGIN_DECL
+
+typedef uint32_t khint_t;
+typedef khint_t khiter_t;
+
+#ifndef KHASH_DEFAULT_SIZE
+# define KHASH_DEFAULT_SIZE 32
+#endif
+#define KHASH_MIN_SIZE 8
+
+#define UPPER_BOUND(x) ((x)>>2|(x)>>1)
+
+/* extern uint8_t __m[]; */
+
+/* mask for flags */
+static const uint8_t __m_empty[]  = {0x02, 0x08, 0x20, 0x80};
+static const uint8_t __m_del[]    = {0x01, 0x04, 0x10, 0x40};
+static const uint8_t __m_either[] = {0x03, 0x0c, 0x30, 0xc0};
+
+
+#define __ac_isempty(ed_flag, i) (ed_flag[(i)/4]&__m_empty[(i)%4])
+#define __ac_isdel(ed_flag, i) (ed_flag[(i)/4]&__m_del[(i)%4])
+#define __ac_iseither(ed_flag, i) (ed_flag[(i)/4]&__m_either[(i)%4])
+#define khash_power2(v) do { \
+  v--;\
+  v |= v >> 1;\
+  v |= v >> 2;\
+  v |= v >> 4;\
+  v |= v >> 8;\
+  v |= v >> 16;\
+  v++;\
+} while (0)
+#define khash_mask(h) ((h)->n_buckets-1)
+#define khash_upper_bound(h) (UPPER_BOUND((h)->n_buckets))
+
+/* declare struct kh_xxx and kh_xxx_funcs
+
+   name: hash name
+   khkey_t: key data type
+   khval_t: value data type
+   kh_is_map: (0: hash set / 1: hash map)
+*/
+#define KHASH_DECLARE(name, khkey_t, khval_t, kh_is_map)                \
+  typedef struct kh_##name {                                            \
+    khint_t n_buckets;                                                  \
+    khint_t size;                                                       \
+    khint_t n_occupied;                                                 \
+    uint8_t *ed_flags;                                                  \
+    khkey_t *keys;                                                      \
+    khval_t *vals;                                                      \
+  } kh_##name##_t;                                                      \
+  void kh_alloc_##name(mrb_state *mrb, kh_##name##_t *h);               \
+  kh_##name##_t *kh_init_##name##_size(mrb_state *mrb, khint_t size);   \
+  kh_##name##_t *kh_init_##name(mrb_state *mrb);                        \
+  void kh_destroy_##name(mrb_state *mrb, kh_##name##_t *h);             \
+  void kh_clear_##name(mrb_state *mrb, kh_##name##_t *h);               \
+  khint_t kh_get_##name(mrb_state *mrb, kh_##name##_t *h, khkey_t key);           \
+  khint_t kh_put_##name(mrb_state *mrb, kh_##name##_t *h, khkey_t key, int *ret); \
+  void kh_resize_##name(mrb_state *mrb, kh_##name##_t *h, khint_t new_n_buckets); \
+  void kh_del_##name(mrb_state *mrb, kh_##name##_t *h, khint_t x);                \
+  kh_##name##_t *kh_copy_##name(mrb_state *mrb, kh_##name##_t *h);
+
+static inline void
+kh_fill_flags(uint8_t *p, uint8_t c, size_t len)
+{
+  while (len-- > 0) {
+    *p++ = c;
+  }
+}
+
+/* define kh_xxx_funcs
+
+   name: hash name
+   khkey_t: key data type
+   khval_t: value data type
+   kh_is_map: (0: hash set / 1: hash map)
+   __hash_func: hash function
+   __hash_equal: hash comparation function
+*/
+#define KHASH_DEFINE(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
+  void kh_alloc_##name(mrb_state *mrb, kh_##name##_t *h)                \
+  {                                                                     \
+    khint_t sz = h->n_buckets;                                          \
+    size_t len = sizeof(khkey_t) + (kh_is_map ? sizeof(khval_t) : 0);   \
+    uint8_t *p = (uint8_t*)mrb_malloc(mrb, sizeof(uint8_t)*sz/4+len*sz); \
+    h->size = h->n_occupied = 0;                                        \
+    h->keys = (khkey_t *)p;                                             \
+    h->vals = kh_is_map ? (khval_t *)(p+sizeof(khkey_t)*sz) : NULL;     \
+    h->ed_flags = p+len*sz;                                             \
+    kh_fill_flags(h->ed_flags, 0xaa, sz/4);                             \
+  }                                                                     \
+  kh_##name##_t *kh_init_##name##_size(mrb_state *mrb, khint_t size) {  \
+    kh_##name##_t *h = (kh_##name##_t*)mrb_calloc(mrb, 1, sizeof(kh_##name##_t)); \
+    if (size < KHASH_MIN_SIZE)                                          \
+      size = KHASH_MIN_SIZE;                                            \
+    khash_power2(size);                                                 \
+    h->n_buckets = size;                                                \
+    kh_alloc_##name(mrb, h);                                            \
+    return h;                                                           \
+  }                                                                     \
+  kh_##name##_t *kh_init_##name(mrb_state *mrb) {                       \
+    return kh_init_##name##_size(mrb, KHASH_DEFAULT_SIZE);              \
+  }                                                                     \
+  void kh_destroy_##name(mrb_state *mrb, kh_##name##_t *h)              \
+  {                                                                     \
+    if (h) {                                                            \
+      mrb_free(mrb, h->keys);                                           \
+      mrb_free(mrb, h);                                                 \
+    }                                                                   \
+  }                                                                     \
+  void kh_clear_##name(mrb_state *mrb, kh_##name##_t *h)                \
+  {                                                                     \
+    (void)mrb;                                                          \
+    if (h && h->ed_flags) {                                             \
+      kh_fill_flags(h->ed_flags, 0xaa, h->n_buckets/4);                 \
+      h->size = h->n_occupied = 0;                                      \
+    }                                                                   \
+  }                                                                     \
+  khint_t kh_get_##name(mrb_state *mrb, kh_##name##_t *h, khkey_t key)  \
+  {                                                                     \
+    khint_t k = __hash_func(mrb,key) & khash_mask(h), step = 0;         \
+    (void)mrb;                                                          \
+    while (!__ac_isempty(h->ed_flags, k)) {                             \
+      if (!__ac_isdel(h->ed_flags, k)) {                                \
+        if (__hash_equal(mrb,h->keys[k], key)) return k;                \
+      }                                                                 \
+      k = (k+(++step)) & khash_mask(h);                                 \
+    }                                                                   \
+    return kh_end(h);                                                   \
+  }                                                                     \
+  void kh_resize_##name(mrb_state *mrb, kh_##name##_t *h, khint_t new_n_buckets) \
+  {                                                                     \
+    if (new_n_buckets < KHASH_MIN_SIZE)                                 \
+      new_n_buckets = KHASH_MIN_SIZE;                                   \
+    khash_power2(new_n_buckets);                                        \
+    {                                                                   \
+      kh_##name##_t hh;                                                 \
+      uint8_t *old_ed_flags = h->ed_flags;                              \
+      khkey_t *old_keys = h->keys;                                      \
+      khval_t *old_vals = h->vals;                                      \
+      khint_t old_n_buckets = h->n_buckets;                             \
+      khint_t i;                                                        \
+      hh.n_buckets = new_n_buckets;                                     \
+      kh_alloc_##name(mrb, &hh);                                        \
+      /* relocate */                                                    \
+      for (i=0 ; i<old_n_buckets ; i++) {                               \
+        if (!__ac_iseither(old_ed_flags, i)) {                          \
+          khint_t k = kh_put_##name(mrb, &hh, old_keys[i], NULL);       \
+          if (kh_is_map) kh_value(&hh,k) = old_vals[i];                 \
+        }                                                               \
+      }                                                                 \
+      /* copy hh to h */                                                \
+      *h = hh;                                                          \
+      mrb_free(mrb, old_keys);                                          \
+    }                                                                   \
+  }                                                                     \
+  khint_t kh_put_##name(mrb_state *mrb, kh_##name##_t *h, khkey_t key, int *ret) \
+  {                                                                     \
+    khint_t k, del_k, step = 0;                                         \
+    if (h->n_occupied >= khash_upper_bound(h)) {                        \
+      kh_resize_##name(mrb, h, h->n_buckets*2);                         \
+    }                                                                   \
+    k = __hash_func(mrb,key) & khash_mask(h);                           \
+    del_k = kh_end(h);                                                  \
+    while (!__ac_isempty(h->ed_flags, k)) {                             \
+      if (!__ac_isdel(h->ed_flags, k)) {                                \
+        if (__hash_equal(mrb,h->keys[k], key)) {                        \
+          if (ret) *ret = 0;                                            \
+          return k;                                                     \
+        }                                                               \
+      }                                                                 \
+      else if (del_k == kh_end(h)) {                                    \
+        del_k = k;                                                      \
+      }                                                                 \
+      k = (k+(++step)) & khash_mask(h);                                 \
+    }                                                                   \
+    if (del_k != kh_end(h)) {                                           \
+      /* put at del */                                                  \
+      h->keys[del_k] = key;                                             \
+      h->ed_flags[del_k/4] &= ~__m_del[del_k%4];                        \
+      h->size++;                                                        \
+      if (ret) *ret = 2;                                                \
+      return del_k;                                                     \
+    }                                                                   \
+    else {                                                              \
+      /* put at empty */                                                \
+      h->keys[k] = key;                                                 \
+      h->ed_flags[k/4] &= ~__m_empty[k%4];                              \
+      h->size++;                                                        \
+      h->n_occupied++;                                                  \
+      if (ret) *ret = 1;                                                \
+      return k;                                                         \
+    }                                                                   \
+  }                                                                     \
+  void kh_del_##name(mrb_state *mrb, kh_##name##_t *h, khint_t x)       \
+  {                                                                     \
+    (void)mrb;                                                          \
+    mrb_assert(x != h->n_buckets && !__ac_iseither(h->ed_flags, x));    \
+    h->ed_flags[x/4] |= __m_del[x%4];                                   \
+    h->size--;                                                          \
+  }                                                                     \
+  kh_##name##_t *kh_copy_##name(mrb_state *mrb, kh_##name##_t *h)       \
+  {                                                                     \
+    kh_##name##_t *h2;                                                  \
+    khiter_t k, k2;                                                     \
+                                                                        \
+    h2 = kh_init_##name(mrb);                                           \
+    for (k = kh_begin(h); k != kh_end(h); k++) {                        \
+      if (kh_exist(h, k)) {                                             \
+        k2 = kh_put_##name(mrb, h2, kh_key(h, k), NULL);                \
+        if (kh_is_map) kh_value(h2, k2) = kh_value(h, k);               \
+      }                                                                 \
+    }                                                                   \
+    return h2;                                                          \
+  }
+
+
+#define khash_t(name) kh_##name##_t
+
+#define kh_init_size(name,mrb,size) kh_init_##name##_size(mrb,size)
+#define kh_init(name,mrb) kh_init_##name(mrb)
+#define kh_destroy(name, mrb, h) kh_destroy_##name(mrb, h)
+#define kh_clear(name, mrb, h) kh_clear_##name(mrb, h)
+#define kh_resize(name, mrb, h, s) kh_resize_##name(mrb, h, s)
+#define kh_put(name, mrb, h, k) kh_put_##name(mrb, h, k, NULL)
+#define kh_put2(name, mrb, h, k, r) kh_put_##name(mrb, h, k, r)
+#define kh_get(name, mrb, h, k) kh_get_##name(mrb, h, k)
+#define kh_del(name, mrb, h, k) kh_del_##name(mrb, h, k)
+#define kh_copy(name, mrb, h) kh_copy_##name(mrb, h)
+
+#define kh_exist(h, x) (!__ac_iseither((h)->ed_flags, (x)))
+#define kh_key(h, x) ((h)->keys[x])
+#define kh_val(h, x) ((h)->vals[x])
+#define kh_value(h, x) ((h)->vals[x])
+#define kh_begin(h) (khint_t)(0)
+#define kh_end(h) ((h)->n_buckets)
+#define kh_size(h) ((h)->size)
+#define kh_n_buckets(h) ((h)->n_buckets)
+
+#define kh_int_hash_func(mrb,key) (khint_t)((key)^((key)<<2)^((key)>>2))
+#define kh_int_hash_equal(mrb,a, b) (a == b)
+#define kh_int64_hash_func(mrb,key) (khint_t)((key)>>33^(key)^(key)<<11)
+#define kh_int64_hash_equal(mrb,a, b) (a == b)
+static inline khint_t __ac_X31_hash_string(const char *s)
+{
+    khint_t h = *s;
+    if (h) for (++s ; *s; ++s) h = (h << 5) - h + *s;
+    return h;
+}
+#define kh_str_hash_func(mrb,key) __ac_X31_hash_string(key)
+#define kh_str_hash_equal(mrb,a, b) (strcmp(a, b) == 0)
+
+typedef const char *kh_cstr_t;
+
+MRB_END_DECL
+
+/* end mruby/khash.h */
+
+/* start mruby/hash.h */
+MRB_BEGIN_DECL
+
+struct RHash {
+  MRB_OBJECT_HEADER;
+  struct iv_tbl *iv;
+  struct kh_ht *ht;
+};
+
+#define mrb_hash_ptr(v)    ((struct RHash*)(mrb_ptr(v)))
+#define mrb_hash_value(p)  mrb_obj_value((void*)(p))
+
+MRB_API mrb_value mrb_hash_new_capa(mrb_state*, mrb_int);
+
+/*
+ * Initializes a new hash.
+ *
+ * Equivalent to:
+ *
+ *      Hash.new
+ *
+ * @param mrb The mruby state reference.
+ * @return The initialized hash.
+ */
+MRB_API mrb_value mrb_hash_new(mrb_state *mrb);
+
+/*
+ * Sets a keys and values to hashes.
+ *
+ * Equivalent to:
+ *
+ *      hash[key] = val
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @param key The key to set.
+ * @param val The value to set.
+ * @return The value.
+ */
+MRB_API void mrb_hash_set(mrb_state *mrb, mrb_value hash, mrb_value key, mrb_value val);
+
+/*
+ * Gets a value from a key. If the key is not found, the default of the
+ * hash is used.
+ *
+ * Equivalent to:
+ *
+ *     hash[key]
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @param key The key to get.
+ * @return The found value.
+ */
+MRB_API mrb_value mrb_hash_get(mrb_state *mrb, mrb_value hash, mrb_value key);
+
+/*
+ * Gets a value from a key. If the key is not found, the default parameter is
+ * used.
+ *
+ * Equivalent to:
+ *
+ *     hash.hash_key?(key) ? hash[key] : def
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @param key The key to get.
+ * @param def The default value.
+ * @return The found value.
+ */
+MRB_API mrb_value mrb_hash_fetch(mrb_state *mrb, mrb_value hash, mrb_value key, mrb_value def);
+
+/*
+ * Deletes hash key and value pair.
+ *
+ * Equivalent to:
+ *
+ *     hash.delete(key)
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @param key The key to delete.
+ * @return The deleted value.
+ */
+MRB_API mrb_value mrb_hash_delete_key(mrb_state *mrb, mrb_value hash, mrb_value key);
+
+/*
+ * Gets an array of keys.
+ *
+ * Equivalent to:
+ *
+ *     hash.keys
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @return An array with the keys of the hash.
+ */
+MRB_API mrb_value mrb_hash_keys(mrb_state *mrb, mrb_value hash);
+MRB_API mrb_value mrb_check_hash_type(mrb_state *mrb, mrb_value hash);
+
+/*
+ * Check if the hash is empty
+ *
+ * Equivalent to:
+ *
+ *     hash.empty?
+ *
+ * @param mrb The mruby state reference.
+ * @param self The target hash.
+ * @return True if the hash is empty, false otherwise.
+ */
+MRB_API mrb_value mrb_hash_empty_p(mrb_state *mrb, mrb_value self);
+
+/*
+ * Gets an array of values.
+ *
+ * Equivalent to:
+ *
+ *     hash.values
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @return An array with the values of the hash.
+ */
+MRB_API mrb_value mrb_hash_values(mrb_state *mrb, mrb_value hash);
+
+/*
+ * Clears the hash.
+ *
+ * Equivalent to:
+ *
+ *     hash.clear
+ *
+ * @param mrb The mruby state reference.
+ * @param hash The target hash.
+ * @return The hash
+ */
+MRB_API mrb_value mrb_hash_clear(mrb_state *mrb, mrb_value hash);
+
+/* declaration of struct kh_ht */
+/* be careful when you touch the internal */
+typedef struct {
+  mrb_value v;
+  mrb_int n;
+} mrb_hash_value;
+
+KHASH_DECLARE(ht, mrb_value, mrb_hash_value, TRUE)
+
+/* RHASH_TBL allocates st_table if not available. */
+#define RHASH(obj)   ((struct RHash*)(mrb_ptr(obj)))
+#define RHASH_TBL(h)          (RHASH(h)->ht)
+#define RHASH_IFNONE(h)       mrb_iv_get(mrb, (h), mrb_intern_lit(mrb, "ifnone"))
+#define RHASH_PROCDEFAULT(h)  RHASH_IFNONE(h)
+MRB_API struct kh_ht * mrb_hash_tbl(mrb_state *mrb, mrb_value hash);
+
+#define MRB_HASH_DEFAULT      1
+#define MRB_HASH_PROC_DEFAULT 2
+#define MRB_RHASH_DEFAULT_P(h) (RHASH(h)->flags & MRB_HASH_DEFAULT)
+#define MRB_RHASH_PROCDEFAULT_P(h) (RHASH(h)->flags & MRB_HASH_PROC_DEFAULT)
+
+/* GC functions */
+void mrb_gc_mark_hash(mrb_state*, struct RHash*);
+size_t mrb_gc_mark_hash_size(mrb_state*, struct RHash*);
+void mrb_gc_free_hash(mrb_state*, struct RHash*);
+
+MRB_END_DECL
+
+/* end mruby/hash.h */
+
+/* start mruby/error.h */
+MRB_BEGIN_DECL
+
+struct RException {
+  MRB_OBJECT_HEADER;
+  struct iv_tbl *iv;
+};
+
+#define mrb_exc_ptr(v) ((struct RException*)mrb_ptr(v))
+
+MRB_API void mrb_sys_fail(mrb_state *mrb, const char *mesg);
+MRB_API mrb_value mrb_exc_new_str(mrb_state *mrb, struct RClass* c, mrb_value str);
+#define mrb_exc_new_str_lit(mrb, c, lit) mrb_exc_new_str(mrb, c, mrb_str_new_lit(mrb, lit))
+MRB_API mrb_value mrb_make_exception(mrb_state *mrb, mrb_int argc, const mrb_value *argv);
+MRB_API mrb_value mrb_exc_backtrace(mrb_state *mrb, mrb_value exc);
+MRB_API mrb_value mrb_get_backtrace(mrb_state *mrb);
+MRB_API mrb_noreturn void mrb_no_method_error(mrb_state *mrb, mrb_sym id, mrb_value args, const char *fmt, ...);
+
+/* declaration for fail method */
+MRB_API mrb_value mrb_f_raise(mrb_state*, mrb_value);
+
+struct RBreak {
+  MRB_OBJECT_HEADER;
+  struct RProc *proc;
+  mrb_value val;
+};
+
+/**
+ * Protect
+ *
+ * @mrbgem mruby-error
+ */
+MRB_API mrb_value mrb_protect(mrb_state *mrb, mrb_func_t body, mrb_value data, mrb_bool *state);
+
+/**
+ * Ensure
+ *
+ * @mrbgem mruby-error
+ */
+MRB_API mrb_value mrb_ensure(mrb_state *mrb, mrb_func_t body, mrb_value b_data,
+                             mrb_func_t ensure, mrb_value e_data);
+
+/**
+ * Rescue
+ *
+ * @mrbgem mruby-error
+ */
+MRB_API mrb_value mrb_rescue(mrb_state *mrb, mrb_func_t body, mrb_value b_data,
+                             mrb_func_t rescue, mrb_value r_data);
+
+/**
+ * Rescue exception
+ *
+ * @mrbgem mruby-error
+ */
+MRB_API mrb_value mrb_rescue_exceptions(mrb_state *mrb, mrb_func_t body, mrb_value b_data,
+                                        mrb_func_t rescue, mrb_value r_data,
+                                        mrb_int len, struct RClass **classes);
+
+MRB_END_DECL
+
+/* end mruby/error.h */
+
+/* start mruby/string.h */
+
+MRB_BEGIN_DECL
+
+extern const char mrb_digitmap[];
+
+#define RSTRING_EMBED_LEN_MAX ((mrb_int)(sizeof(void*) * 3 - 1))
+
+struct RString {
+  MRB_OBJECT_HEADER;
+  union {
+    struct {
+      mrb_int len;
+      union {
+        mrb_int capa;
+        struct mrb_shared_string *shared;
+        struct RString *fshared;
+      } aux;
+      char *ptr;
+    } heap;
+    char ary[RSTRING_EMBED_LEN_MAX + 1];
+  } as;
+};
+
+#define RSTR_EMBED_P(s) ((s)->flags & MRB_STR_EMBED)
+#define RSTR_SET_EMBED_FLAG(s) ((s)->flags |= MRB_STR_EMBED)
+#define RSTR_UNSET_EMBED_FLAG(s) ((s)->flags &= ~(MRB_STR_EMBED|MRB_STR_EMBED_LEN_MASK))
+#define RSTR_SET_EMBED_LEN(s, n) do {\
+  size_t tmp_n = (n);\
+  s->flags &= ~MRB_STR_EMBED_LEN_MASK;\
+  s->flags |= (tmp_n) << MRB_STR_EMBED_LEN_SHIFT;\
+} while (0)
+#define RSTR_SET_LEN(s, n) do {\
+  if (RSTR_EMBED_P(s)) {\
+    RSTR_SET_EMBED_LEN((s),(n));\
+  }\
+  else {\
+    s->as.heap.len = (mrb_int)(n);\
+  }\
+} while (0)
+#define RSTR_EMBED_LEN(s)\
+  (mrb_int)(((s)->flags & MRB_STR_EMBED_LEN_MASK) >> MRB_STR_EMBED_LEN_SHIFT)
+#define RSTR_PTR(s) ((RSTR_EMBED_P(s)) ? (s)->as.ary : (s)->as.heap.ptr)
+#define RSTR_LEN(s) ((RSTR_EMBED_P(s)) ? RSTR_EMBED_LEN(s) : (s)->as.heap.len)
+#define RSTR_CAPA(s) (RSTR_EMBED_P(s) ? RSTRING_EMBED_LEN_MAX : (s)->as.heap.aux.capa)
+
+#define RSTR_SHARED_P(s) ((s)->flags & MRB_STR_SHARED)
+#define RSTR_SET_SHARED_FLAG(s) ((s)->flags |= MRB_STR_SHARED)
+#define RSTR_UNSET_SHARED_FLAG(s) ((s)->flags &= ~MRB_STR_SHARED)
+
+#define RSTR_FSHARED_P(s) ((s)->flags & MRB_STR_FSHARED)
+#define RSTR_SET_FSHARED_FLAG(s) ((s)->flags |= MRB_STR_FSHARED)
+#define RSTR_UNSET_FSHARED_FLAG(s) ((s)->flags &= ~MRB_STR_FSHARED)
+
+#define RSTR_NOFREE_P(s) ((s)->flags & MRB_STR_NOFREE)
+#define RSTR_SET_NOFREE_FLAG(s) ((s)->flags |= MRB_STR_NOFREE)
+#define RSTR_UNSET_NOFREE_FLAG(s) ((s)->flags &= ~MRB_STR_NOFREE)
+
+#define RSTR_POOL_P(s) ((s)->flags & MRB_STR_POOL)
+#define RSTR_SET_POOL_FLAG(s) ((s)->flags |= MRB_STR_POOL)
+
+/*
+ * Returns a pointer from a Ruby string
+ */
+#define mrb_str_ptr(s)       ((struct RString*)(mrb_ptr(s)))
+#define RSTRING(s)           mrb_str_ptr(s)
+#define RSTRING_PTR(s)       RSTR_PTR(RSTRING(s))
+#define RSTRING_EMBED_LEN(s) RSTR_EMBED_LEN(RSTRING(s))
+#define RSTRING_LEN(s)       RSTR_LEN(RSTRING(s))
+#define RSTRING_CAPA(s)      RSTR_CAPA(RSTRING(s))
+#define RSTRING_END(s)       (RSTRING_PTR(s) + RSTRING_LEN(s))
+MRB_API mrb_int mrb_str_strlen(mrb_state*, struct RString*);
+
+#define MRB_STR_SHARED    1
+#define MRB_STR_FSHARED   2
+#define MRB_STR_NOFREE    4
+#define MRB_STR_POOL      8
+#define MRB_STR_NO_UTF   16
+#define MRB_STR_EMBED    32
+#define MRB_STR_EMBED_LEN_MASK 0x7c0
+#define MRB_STR_EMBED_LEN_SHIFT 6
+
+void mrb_gc_free_str(mrb_state*, struct RString*);
+MRB_API void mrb_str_modify(mrb_state*, struct RString*);
+
+/*
+ * Finds the index of a substring in a string
+ */
+MRB_API mrb_int mrb_str_index(mrb_state*, mrb_value, const char*, mrb_int, mrb_int);
+#define mrb_str_index_lit(mrb, str, lit, off) mrb_str_index(mrb, str, lit, mrb_strlen_lit(lit), off);
+
+/*
+ * Appends self to other. Returns self as a concatnated string.
+ *
+ *
+ *  Example:
+ *
+ *     !!!c
+ *     int
+ *     main(int argc,
+ *          char **argv)
+ *     {
+ *       // Variable declarations.
+ *       mrb_value str1;
+ *       mrb_value str2;
+ *
+ *       mrb_state *mrb = mrb_open();
+ *       if (!mrb)
+ *       {
+ *          // handle error
+ *       }
+ *
+ *       // Creates new Ruby strings.
+ *       str1 = mrb_str_new_lit(mrb, "abc");
+ *       str2 = mrb_str_new_lit(mrb, "def");
+ *
+ *       // Concatnates str2 to str1.
+ *       mrb_str_concat(mrb, str1, str2);
+ *
+ *      // Prints new Concatnated Ruby string.
+ *      mrb_p(mrb, str1);
+ *
+ *      mrb_close(mrb);
+ *      return 0;
+ *    }
+ *
+ *
+ *  Result:
+ *
+ *     => "abcdef"
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] self String to concatenate.
+ * @param [mrb_value] other String to append to self.
+ * @return [mrb_value] Returns a new String appending other to self.
+ */
+MRB_API void mrb_str_concat(mrb_state*, mrb_value, mrb_value);
+
+/*
+ * Adds two strings together.
+ *
+ *
+ *  Example:
+ *
+ *     !!!c
+ *     int
+ *     main(int argc,
+ *          char **argv)
+ *     {
+ *       // Variable declarations.
+ *       mrb_value a;
+ *       mrb_value b;
+ *       mrb_value c;
+ *
+ *       mrb_state *mrb = mrb_open();
+ *       if (!mrb)
+ *       {
+ *          // handle error
+ *       }
+ *
+ *       // Creates two Ruby strings from the passed in C strings.
+ *       a = mrb_str_new_lit(mrb, "abc");
+ *       b = mrb_str_new_lit(mrb, "def");
+ *
+ *       // Prints both C strings.
+ *       mrb_p(mrb, a);
+ *       mrb_p(mrb, b);
+ *
+ *       // Concatnates both Ruby strings.
+ *       c = mrb_str_plus(mrb, a, b);
+ *
+ *      // Prints new Concatnated Ruby string.
+ *      mrb_p(mrb, c);
+ *
+ *      mrb_close(mrb);
+ *      return 0;
+ *    }
+ *
+ *
+ *  Result:
+ *
+ *     => "abc"  # First string
+ *     => "def"  # Second string
+ *     => "abcdef" # First & Second concatnated.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] a First string to concatenate.
+ * @param [mrb_value] b Second string to concatenate.
+ * @return [mrb_value] Returns a new String containing a concatenated to b.
+ */
+MRB_API mrb_value mrb_str_plus(mrb_state*, mrb_value, mrb_value);
+
+/*
+ * Converts pointer into a Ruby string.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [void*] p The pointer to convert to Ruby string.
+ * @return [mrb_value] Returns a new Ruby String.
+ */
+MRB_API mrb_value mrb_ptr_to_str(mrb_state *, void*);
+
+/*
+ * Returns an object as a Ruby string.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] obj An object to return as a Ruby string.
+ * @return [mrb_value] An object as a Ruby string.
+ */
+MRB_API mrb_value mrb_obj_as_string(mrb_state *mrb, mrb_value obj);
+
+/*
+ * Resizes the string's length. Returns the amount of characters
+ * in the specified by len.
+ *
+ * Example:
+ *
+ *     !!!c
+ *     int
+ *     main(int argc,
+ *          char **argv)
+ *     {
+ *         // Variable declaration.
+ *         mrb_value str;
+ *
+ *         mrb_state *mrb = mrb_open();
+ *         if (!mrb)
+ *         {
+ *            // handle error
+ *         }
+ *         // Creates a new string.
+ *         str = mrb_str_new_lit(mrb, "Hello, world!");
+ *         // Returns 5 characters of
+ *         mrb_str_resize(mrb, str, 5);
+ *         mrb_p(mrb, str);
+ *
+ *         mrb_close(mrb);
+ *         return 0;
+ *      }
+ *
+ * Result:
+ *
+ *     => "Hello"
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str The Ruby string to resize.
+ * @param [mrb_value] len The length.
+ * @return [mrb_value] An object as a Ruby string.
+ */
+MRB_API mrb_value mrb_str_resize(mrb_state *mrb, mrb_value str, mrb_int len);
+
+/*
+ * Returns a sub string.
+ *
+ *  Example:
+ *
+ *     !!!c
+ *     int
+ *     main(int argc,
+ *     char const **argv)
+ *     {
+ *       // Variable declarations.
+ *       mrb_value str1;
+ *       mrb_value str2;
+ *
+ *       mrb_state *mrb = mrb_open();
+ *       if (!mrb)
+ *       {
+ *         // handle error
+ *       }
+ *       // Creates new string.
+ *       str1 = mrb_str_new_lit(mrb, "Hello, world!");
+ *       // Returns a sub-string within the range of 0..2
+ *       str2 = mrb_str_substr(mrb, str1, 0, 2);
+ *
+ *       // Prints sub-string.
+ *       mrb_p(mrb, str2);
+ *
+ *       mrb_close(mrb);
+ *       return 0;
+ *     }
+ *
+ *  Result:
+ *
+ *     => "He"
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @param [mrb_int] beg The beginning point of the sub-string.
+ * @param [mrb_int] len The end point of the sub-string.
+ * @return [mrb_value] An object as a Ruby sub-string.
+ */
+MRB_API mrb_value mrb_str_substr(mrb_state *mrb, mrb_value str, mrb_int beg, mrb_int len);
+
+/*
+ * Returns a Ruby string type.
+ *
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @return [mrb_value] A Ruby string.
+ */
+MRB_API mrb_value mrb_string_type(mrb_state *mrb, mrb_value str);
+
+MRB_API mrb_value mrb_check_string_type(mrb_state *mrb, mrb_value str);
+MRB_API mrb_value mrb_str_new_capa(mrb_state *mrb, size_t capa);
+MRB_API mrb_value mrb_str_buf_new(mrb_state *mrb, size_t capa);
+
+MRB_API const char *mrb_string_value_cstr(mrb_state *mrb, mrb_value *ptr);
+MRB_API const char *mrb_string_value_ptr(mrb_state *mrb, mrb_value str);
+/*
+ * Returns the length of the Ruby string.
+ *
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @return [mrb_int] The length of the passed in Ruby string.
+ */
+MRB_API mrb_int mrb_string_value_len(mrb_state *mrb, mrb_value str);
+
+/*
+ * Duplicates a string object.
+ *
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @return [mrb_value] Duplicated Ruby string.
+ */
+MRB_API mrb_value mrb_str_dup(mrb_state *mrb, mrb_value str);
+
+/*
+ * Returns a symbol from a passed in Ruby string.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] self Ruby string.
+ * @return [mrb_value] A symbol.
+ */
+MRB_API mrb_value mrb_str_intern(mrb_state *mrb, mrb_value self);
+
+MRB_API mrb_value mrb_str_to_inum(mrb_state *mrb, mrb_value str, mrb_int base, mrb_bool badcheck);
+MRB_API double mrb_str_to_dbl(mrb_state *mrb, mrb_value str, mrb_bool badcheck);
+
+/*
+ * Returns a converted string type.
+ */
+MRB_API mrb_value mrb_str_to_str(mrb_state *mrb, mrb_value str);
+
+/*
+ * Returns true if the strings match and false if the strings don't match.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str1 Ruby string to compare.
+ * @param [mrb_value] str2 Ruby string to compare.
+ * @return [mrb_value] boolean value.
+ */
+MRB_API mrb_bool mrb_str_equal(mrb_state *mrb, mrb_value str1, mrb_value str2);
+
+/*
+ * Returns a concated string comprised of a Ruby string and a C string.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @param [const char *] ptr A C string.
+ * @param [size_t] len length of C string.
+ * @return [mrb_value] A Ruby string.
+ * @see mrb_str_cat_cstr
+ */
+MRB_API mrb_value mrb_str_cat(mrb_state *mrb, mrb_value str, const char *ptr, size_t len);
+
+/*
+ * Returns a concated string comprised of a Ruby string and a C string.
+ *
+ * @param [mrb_state] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string.
+ * @param [const char *] ptr A C string.
+ * @return [mrb_value] A Ruby string.
+ * @see mrb_str_cat
+ */
+MRB_API mrb_value mrb_str_cat_cstr(mrb_state *mrb, mrb_value str, const char *ptr);
+MRB_API mrb_value mrb_str_cat_str(mrb_state *mrb, mrb_value str, mrb_value str2);
+#define mrb_str_cat_lit(mrb, str, lit) mrb_str_cat(mrb, str, lit, mrb_strlen_lit(lit))
+
+/*
+ * Adds str2 to the end of str1.
+ */
+MRB_API mrb_value mrb_str_append(mrb_state *mrb, mrb_value str, mrb_value str2);
+
+/*
+ * Returns 0 if both Ruby strings are equal. Returns a value < 0 if Ruby str1 is less than Ruby str2. Returns a value > 0 if Ruby str2 is greater than Ruby str1.
+ */
+MRB_API int mrb_str_cmp(mrb_state *mrb, mrb_value str1, mrb_value str2);
+
+/*
+ * Returns a newly allocated C string from a Ruby string.
+ * This is an utility function to pass a Ruby string to C library functions.
+ *
+ * - Returned string does not contain any NUL characters (but terminator).
+ * - It raises an ArgumentError exception if Ruby string contains
+ *   NUL characters.
+ * - Retured string will be freed automatically on next GC.
+ * - Caller can modify returned string without affecting Ruby string
+ *   (e.g. it can be used for mkstemp(3)).
+ *
+ * @param [mrb_state *] mrb The current mruby state.
+ * @param [mrb_value] str Ruby string. Must be an instance of String.
+ * @return [char *] A newly allocated C string.
+ */
+MRB_API char *mrb_str_to_cstr(mrb_state *mrb, mrb_value str);
+
+mrb_value mrb_str_pool(mrb_state *mrb, mrb_value str);
+uint32_t mrb_str_hash(mrb_state *mrb, mrb_value str);
+mrb_value mrb_str_dump(mrb_state *mrb, mrb_value str);
+
+/*
+ * Returns a printable version of str, surrounded by quote marks, with special characters escaped.
+ */
+mrb_value mrb_str_inspect(mrb_state *mrb, mrb_value str);
+
+void mrb_noregexp(mrb_state *mrb, mrb_value self);
+void mrb_regexp_check(mrb_state *mrb, mrb_value obj);
+
+/* For backward compatibility */
+#define mrb_str_cat2(mrb, str, ptr) mrb_str_cat_cstr(mrb, str, ptr)
+#define mrb_str_buf_cat(mrb, str, ptr, len) mrb_str_cat(mrb, str, ptr, len)
+#define mrb_str_buf_append(mrb, str, str2) mrb_str_cat_str(mrb, str, str2)
+
+MRB_END_DECL
+
+/* end mruby/string.h */
+
+/* start mruby/array.h */
+MRB_BEGIN_DECL
+
+
+typedef struct mrb_shared_array {
+  int refcnt;
+  mrb_int len;
+  mrb_value *ptr;
+} mrb_shared_array;
+
+#define MRB_ARY_EMBED_LEN_MAX ((mrb_int)(sizeof(void*)*3/sizeof(mrb_value)))
+struct RArray {
+  MRB_OBJECT_HEADER;
+  union {
+    struct {
+      mrb_int len;
+      union {
+        mrb_int capa;
+        mrb_shared_array *shared;
+      } aux;
+      mrb_value *ptr;
+    } heap;
+    mrb_value embed[MRB_ARY_EMBED_LEN_MAX];
+  } as;
+};
+
+#define mrb_ary_ptr(v)    ((struct RArray*)(mrb_ptr(v)))
+#define mrb_ary_value(p)  mrb_obj_value((void*)(p))
+#define RARRAY(v)  ((struct RArray*)(mrb_ptr(v)))
+
+#define MRB_ARY_EMBED_MASK  7
+#define ARY_EMBED_P(a) ((a)->flags & MRB_ARY_EMBED_MASK)
+#define ARY_UNSET_EMBED_FLAG(a) ((a)->flags &= ~(MRB_ARY_EMBED_MASK))
+#define ARY_EMBED_LEN(a) ((mrb_int)(((a)->flags & MRB_ARY_EMBED_MASK) - 1))
+#define ARY_SET_EMBED_LEN(a,len) ((a)->flags = ((a)->flags&~MRB_ARY_EMBED_MASK) | ((uint32_t)(len) + 1))
+#define ARY_EMBED_PTR(a) (&((a)->as.embed[0]))
+
+#define ARY_LEN(a) (ARY_EMBED_P(a)?ARY_EMBED_LEN(a):(a)->as.heap.len)
+#define ARY_PTR(a) (ARY_EMBED_P(a)?ARY_EMBED_PTR(a):(a)->as.heap.ptr)
+#define RARRAY_LEN(a) ARY_LEN(RARRAY(a))
+#define RARRAY_PTR(a) ARY_PTR(RARRAY(a))
+#define ARY_SET_LEN(a,n) do {\
+  if (ARY_EMBED_P(a)) {\
+    mrb_assert((n) <= MRB_ARY_EMBED_LEN_MAX); \
+    ARY_SET_EMBED_LEN(a,n);\
+  }\
+  else\
+    (a)->as.heap.len = (n);\
+} while (0)
+#define ARY_CAPA(a) (ARY_EMBED_P(a)?MRB_ARY_EMBED_LEN_MAX:(a)->as.heap.aux.capa)
+#define MRB_ARY_SHARED      256
+#define ARY_SHARED_P(a) ((a)->flags & MRB_ARY_SHARED)
+#define ARY_SET_SHARED_FLAG(a) ((a)->flags |= MRB_ARY_SHARED)
+#define ARY_UNSET_SHARED_FLAG(a) ((a)->flags &= ~MRB_ARY_SHARED)
+
+void mrb_ary_decref(mrb_state*, mrb_shared_array*);
+MRB_API void mrb_ary_modify(mrb_state*, struct RArray*);
+MRB_API mrb_value mrb_ary_new_capa(mrb_state*, mrb_int);
+
+/*
+ * Initializes a new array.
+ *
+ * Equivalent to:
+ *
+ *      Array.new
+ *
+ * @param mrb The mruby state reference.
+ * @return The initialized array.
+ */
+MRB_API mrb_value mrb_ary_new(mrb_state *mrb);
+
+/*
+ * Initializes a new array with initial values
+ *
+ * Equivalent to:
+ *
+ *      Array[value1, value2, ...]
+ *
+ * @param mrb The mruby state reference.
+ * @param size The numer of values.
+ * @param vals The actual values.
+ * @return The initialized array.
+ */
+MRB_API mrb_value mrb_ary_new_from_values(mrb_state *mrb, mrb_int size, const mrb_value *vals);
+
+/*
+ * Initializes a new array with two initial values
+ *
+ * Equivalent to:
+ *
+ *      Array[car, cdr]
+ *
+ * @param mrb The mruby state reference.
+ * @param car The first value.
+ * @param cdr The second value.
+ * @return The initialized array.
+ */
+MRB_API mrb_value mrb_assoc_new(mrb_state *mrb, mrb_value car, mrb_value cdr);
+
+/*
+ * Concatenate two arrays. The target array will be modified
+ *
+ * Equivalent to:
+ *      ary.concat(other)
+ *
+ * @param mrb The mruby state reference.
+ * @param self The target array.
+ * @param other The array that will be concatenated to self.
+ */
+MRB_API void mrb_ary_concat(mrb_state *mrb, mrb_value self, mrb_value other);
+
+/*
+ * Create an array from the input. It tries calling to_a on the
+ * value. If value does not respond to that, it creates a new
+ * array with just this value.
+ *
+ * @param mrb The mruby state reference.
+ * @param value The value to change into an array.
+ * @return An array representation of value.
+ */
+MRB_API mrb_value mrb_ary_splat(mrb_state *mrb, mrb_value value);
+
+/*
+ * Pushes value into array.
+ *
+ * Equivalent to:
+ *
+ *      ary << value
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The array in which the value will be pushed
+ * @param value The value to be pushed into array
+ */
+MRB_API void mrb_ary_push(mrb_state *mrb, mrb_value array, mrb_value value);
+
+/*
+ * Pops the last element from the array.
+ *
+ * Equivalent to:
+ *
+ *      ary.pop
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The array from which the value will be popped.
+ * @return The popped value.
+ */
+MRB_API mrb_value mrb_ary_pop(mrb_state *mrb, mrb_value ary);
+
+/*
+ * Returns a reference to an element of the array on the given index.
+ *
+ * Equivalent to:
+ *
+ *      ary[n]
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The target array.
+ * @param n The array index being referenced
+ * @return The referenced value.
+ */
+MRB_API mrb_value mrb_ary_ref(mrb_state *mrb, mrb_value ary, mrb_int n);
+
+/*
+ * Sets a value on an array at the given index
+ *
+ * Equivalent to:
+ *
+ *      ary[n] = val
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The target array.
+ * @param n The array index being referenced.
+ * @param val The value being setted.
+ */
+MRB_API void mrb_ary_set(mrb_state *mrb, mrb_value ary, mrb_int n, mrb_value val);
+
+/*
+ * Replace the array with another array
+ *
+ * Equivalent to:
+ *
+ *      ary.replace(other)
+ *
+ * @param mrb The mruby state reference
+ * @param self The target array.
+ * @param other The array to replace it with.
+ */
+MRB_API void mrb_ary_replace(mrb_state *mrb, mrb_value self, mrb_value other);
+MRB_API mrb_value mrb_check_array_type(mrb_state *mrb, mrb_value self);
+
+/*
+ * Unshift an element into the array
+ *
+ * Equivalent to:
+ *
+ *     ary.unshift(item)
+ *
+ * @param mrb The mruby state reference.
+ * @param self The target array.
+ * @param item The item to unshift.
+ */
+MRB_API mrb_value mrb_ary_unshift(mrb_state *mrb, mrb_value self, mrb_value item);
+
+/*
+ * Get nth element in the array
+ *
+ * Equivalent to:
+ *
+ *     ary[offset]
+ *
+ * @param ary The target array.
+ * @param offset The element position (negative counts from the tail).
+ */
+MRB_API mrb_value mrb_ary_entry(mrb_value ary, mrb_int offset);
+
+/*
+ * Shifts the first element from the array.
+ *
+ * Equivalent to:
+ *
+ *      ary.shift
+ *
+ * @param mrb The mruby state reference.
+ * @param self The array from which the value will be shifted.
+ * @return The shifted value.
+ */
+MRB_API mrb_value mrb_ary_shift(mrb_state *mrb, mrb_value self);
+
+/*
+ * Removes all elements from the array
+ *
+ * Equivalent to:
+ *
+ *      ary.clear
+ *
+ * @param mrb The mruby state reference.
+ * @param self The target array.
+ * @return self
+ */
+MRB_API mrb_value mrb_ary_clear(mrb_state *mrb, mrb_value self);
+
+/*
+ * Join the array elements together in a string
+ *
+ * Equivalent to:
+ *
+ *      ary.join(sep="")
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The target array
+ * @param sep The separater, can be NULL
+ */
+MRB_API mrb_value mrb_ary_join(mrb_state *mrb, mrb_value ary, mrb_value sep);
+
+/*
+ * Update the capacity of the array
+ *
+ * @param mrb The mruby state reference.
+ * @param ary The target array.
+ * @param new_len The new capacity of the array
+ */
+MRB_API mrb_value mrb_ary_resize(mrb_state *mrb, mrb_value ary, mrb_int new_len);
+
+MRB_END_DECL
+/* end mruby/array.h */
+
+/* start mruby/class.h */
+MRB_BEGIN_DECL
+
+struct RClass {
+  MRB_OBJECT_HEADER;
+  struct iv_tbl *iv;
+  struct kh_mt *mt;
+  struct RClass *super;
+};
+
+#define mrb_class_ptr(v)    ((struct RClass*)(mrb_ptr(v)))
+#define RCLASS_SUPER(v)     (((struct RClass*)(mrb_ptr(v)))->super)
+#define RCLASS_IV_TBL(v)    (((struct RClass*)(mrb_ptr(v)))->iv)
+#define RCLASS_M_TBL(v)     (((struct RClass*)(mrb_ptr(v)))->mt)
+
+static inline struct RClass*
+mrb_class(mrb_state *mrb, mrb_value v)
+{
+  switch (mrb_type(v)) {
+  case MRB_TT_FALSE:
+    if (mrb_fixnum(v))
+      return mrb->false_class;
+    return mrb->nil_class;
+  case MRB_TT_TRUE:
+    return mrb->true_class;
+  case MRB_TT_SYMBOL:
+    return mrb->symbol_class;
+  case MRB_TT_FIXNUM:
+    return mrb->fixnum_class;
+#ifndef MRB_WITHOUT_FLOAT
+  case MRB_TT_FLOAT:
+    return mrb->float_class;
+#endif
+  case MRB_TT_CPTR:
+    return mrb->object_class;
+  case MRB_TT_ENV:
+    return NULL;
+  default:
+    return mrb_obj_ptr(v)->c;
+  }
+}
+
+/* TODO: figure out where to put user flags */
+/* flags bits >= 18 is reserved */
+#define MRB_FLAG_IS_PREPENDED (1 << 19)
+#define MRB_FLAG_IS_ORIGIN (1 << 20)
+#define MRB_CLASS_ORIGIN(c) do {\
+  if (c->flags & MRB_FLAG_IS_PREPENDED) {\
+    c = c->super;\
+    while (!(c->flags & MRB_FLAG_IS_ORIGIN)) {\
+      c = c->super;\
+    }\
+  }\
+} while (0)
+#define MRB_FLAG_IS_INHERITED (1 << 21)
+#define MRB_INSTANCE_TT_MASK (0xFF)
+#define MRB_SET_INSTANCE_TT(c, tt) c->flags = ((c->flags & ~MRB_INSTANCE_TT_MASK) | (char)tt)
+#define MRB_INSTANCE_TT(c) (enum mrb_vtype)(c->flags & MRB_INSTANCE_TT_MASK)
+
+MRB_API struct RClass* mrb_define_class_id(mrb_state*, mrb_sym, struct RClass*);
+MRB_API struct RClass* mrb_define_module_id(mrb_state*, mrb_sym);
+MRB_API struct RClass *mrb_vm_define_class(mrb_state*, mrb_value, mrb_value, mrb_sym);
+MRB_API struct RClass *mrb_vm_define_module(mrb_state*, mrb_value, mrb_sym);
+MRB_API void mrb_define_method_raw(mrb_state*, struct RClass*, mrb_sym, mrb_method_t);
+MRB_API void mrb_define_method_id(mrb_state *mrb, struct RClass *c, mrb_sym mid, mrb_func_t func, mrb_aspec aspec);
+MRB_API void mrb_alias_method(mrb_state *mrb, struct RClass *c, mrb_sym a, mrb_sym b);
+
+MRB_API mrb_method_t mrb_method_search_vm(mrb_state*, struct RClass**, mrb_sym);
+MRB_API mrb_method_t mrb_method_search(mrb_state*, struct RClass*, mrb_sym);
+
+MRB_API struct RClass* mrb_class_real(struct RClass* cl);
+
+void mrb_class_name_class(mrb_state*, struct RClass*, struct RClass*, mrb_sym);
+mrb_value mrb_class_find_path(mrb_state*, struct RClass*);
+void mrb_gc_mark_mt(mrb_state*, struct RClass*);
+size_t mrb_gc_mark_mt_size(mrb_state*, struct RClass*);
+void mrb_gc_free_mt(mrb_state*, struct RClass*);
+
+MRB_END_DECL
+/* end mruby/class.h */
+
+/* start mruby/range.h */
+MRB_BEGIN_DECL
+
+typedef struct mrb_range_edges {
+  mrb_value beg;
+  mrb_value end;
+} mrb_range_edges;
+
+struct RRange {
+  MRB_OBJECT_HEADER;
+  mrb_range_edges *edges;
+  mrb_bool excl : 1;
+};
+
+MRB_API struct RRange* mrb_range_ptr(mrb_state *mrb, mrb_value v);
+#define mrb_range_raw_ptr(v) ((struct RRange*)mrb_ptr(v))
+#define mrb_range_value(p)  mrb_obj_value((void*)(p))
+
+/*
+ * Initializes a Range.
+ *
+ * If the third parameter is FALSE then it includes the last value in the range.
+ * If the third parameter is TRUE then it excludes the last value in the range.
+ *
+ * @param start the beginning value.
+ * @param end the ending value.
+ * @param exclude represents the inclusion or exclusion of the last value.
+ */
+MRB_API mrb_value mrb_range_new(mrb_state *mrb, mrb_value start, mrb_value end, mrb_bool exclude);
+
+MRB_API mrb_int mrb_range_beg_len(mrb_state *mrb, mrb_value range, mrb_int *begp, mrb_int *lenp, mrb_int len, mrb_bool trunc);
+mrb_value mrb_get_values_at(mrb_state *mrb, mrb_value obj, mrb_int olen, mrb_int argc, const mrb_value *argv, mrb_value (*func)(mrb_state*, mrb_value, mrb_int));
+
+MRB_END_DECL
+/* end mruby/range.h */
+
+/* start mruby/irep.h */
+MRB_BEGIN_DECL
+
+enum irep_pool_type {
+  IREP_TT_STRING,
+  IREP_TT_FIXNUM,
+  IREP_TT_FLOAT,
+};
+
+struct mrb_locals {
+  mrb_sym name;
+  uint16_t r;
+};
+
+/* Program data array struct */
+typedef struct mrb_irep {
+  uint16_t nlocals;        /* Number of local variables */
+  uint16_t nregs;          /* Number of register variables */
+  uint8_t flags;
+
+  mrb_code *iseq;
+  mrb_value *pool;
+  mrb_sym *syms;
+  struct mrb_irep **reps;
+
+  struct mrb_locals *lv;
+  /* debug info */
+  mrb_bool own_filename;
+  const char *filename;
+  uint16_t *lines;
+  struct mrb_irep_debug_info* debug_info;
+
+  int ilen, plen, slen, rlen, refcnt;
+} mrb_irep;
+
+#define MRB_ISEQ_NO_FREE 1
+
+MRB_API mrb_irep *mrb_add_irep(mrb_state *mrb);
+MRB_API mrb_value mrb_load_irep(mrb_state*, const uint8_t*);
+MRB_API mrb_value mrb_load_irep_cxt(mrb_state*, const uint8_t*, mrbc_context*);
+void mrb_irep_free(mrb_state*, struct mrb_irep*);
+void mrb_irep_incref(mrb_state*, struct mrb_irep*);
+void mrb_irep_decref(mrb_state*, struct mrb_irep*);
+void mrb_irep_cutref(mrb_state*, struct mrb_irep*);
+
+MRB_END_DECL
+/* end mruby/irep.h */
+
+/* start mruby/proc.h */
+MRB_BEGIN_DECL
+
+struct REnv {
+  MRB_OBJECT_HEADER;
+  mrb_value *stack;
+  struct mrb_context *cxt;
+  mrb_sym mid;
+};
+
+/* flags (21bits): 1(shared flag):10(cioff/bidx):10(stack_len) */
+#define MRB_ENV_SET_STACK_LEN(e,len) (e)->flags = (((e)->flags & ~0x3ff)|((unsigned int)(len) & 0x3ff))
+#define MRB_ENV_STACK_LEN(e) ((mrb_int)((e)->flags & 0x3ff))
+#define MRB_ENV_STACK_UNSHARED (1<<20)
+#define MRB_ENV_UNSHARE_STACK(e) (e)->flags |= MRB_ENV_STACK_UNSHARED
+#define MRB_ENV_STACK_SHARED_P(e) (((e)->flags & MRB_ENV_STACK_UNSHARED) == 0)
+#define MRB_ENV_BIDX(e) (((e)->flags >> 10) & 0x3ff)
+#define MRB_ENV_SET_BIDX(e,idx) (e)->flags = (((e)->flags & ~(0x3ff<<10))|((unsigned int)(idx) & 0x3ff)<<10)
+
+void mrb_env_unshare(mrb_state*, struct REnv*);
+
+struct RProc {
+  MRB_OBJECT_HEADER;
+  union {
+    mrb_irep *irep;
+    mrb_func_t func;
+  } body;
+  struct RProc *upper;
+  union {
+    struct RClass *target_class;
+    struct REnv *env;
+  } e;
+};
+
+/* aspec access */
+#define MRB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
+#define MRB_ASPEC_OPT(a)          (((a) >> 13) & 0x1f)
+#define MRB_ASPEC_REST(a)         (((a) >> 12) & 0x1)
+#define MRB_ASPEC_POST(a)         (((a) >> 7) & 0x1f)
+#define MRB_ASPEC_KEY(a)          (((a) >> 2) & 0x1f)
+#define MRB_ASPEC_KDICT(a)        ((a) & (1<<1))
+#define MRB_ASPEC_BLOCK(a)        ((a) & 1)
+
+#define MRB_PROC_CFUNC_FL 128
+#define MRB_PROC_CFUNC_P(p) (((p)->flags & MRB_PROC_CFUNC_FL) != 0)
+#define MRB_PROC_CFUNC(p) (p)->body.func
+#define MRB_PROC_STRICT 256
+#define MRB_PROC_STRICT_P(p) (((p)->flags & MRB_PROC_STRICT) != 0)
+#define MRB_PROC_ORPHAN 512
+#define MRB_PROC_ORPHAN_P(p) (((p)->flags & MRB_PROC_ORPHAN) != 0)
+#define MRB_PROC_ENVSET 1024
+#define MRB_PROC_ENV_P(p) (((p)->flags & MRB_PROC_ENVSET) != 0)
+#define MRB_PROC_ENV(p) (MRB_PROC_ENV_P(p) ? (p)->e.env : NULL)
+#define MRB_PROC_TARGET_CLASS(p) (MRB_PROC_ENV_P(p) ? (p)->e.env->c : (p)->e.target_class)
+#define MRB_PROC_SET_TARGET_CLASS(p,tc) do {\
+  if (MRB_PROC_ENV_P(p)) {\
+    (p)->e.env->c = (tc);\
+    mrb_field_write_barrier(mrb, (struct RBasic*)(p)->e.env, (struct RBasic*)tc);\
+  }\
+  else {\
+    (p)->e.target_class = (tc);\
+    mrb_field_write_barrier(mrb, (struct RBasic*)p, (struct RBasic*)tc);\
+  }\
+} while (0)
+#define MRB_PROC_SCOPE 2048
+#define MRB_PROC_SCOPE_P(p) (((p)->flags & MRB_PROC_SCOPE) != 0)
+
+#define mrb_proc_ptr(v)    ((struct RProc*)(mrb_ptr(v)))
+
+struct RProc *mrb_proc_new(mrb_state*, mrb_irep*);
+struct RProc *mrb_closure_new(mrb_state*, mrb_irep*);
+MRB_API struct RProc *mrb_proc_new_cfunc(mrb_state*, mrb_func_t);
+MRB_API struct RProc *mrb_closure_new_cfunc(mrb_state *mrb, mrb_func_t func, int nlocals);
+void mrb_proc_copy(struct RProc *a, struct RProc *b);
+
+/* implementation of #send method */
+MRB_API mrb_value mrb_f_send(mrb_state *mrb, mrb_value self);
+
+/* following functions are defined in mruby-proc-ext so please include it when using */
+MRB_API struct RProc *mrb_proc_new_cfunc_with_env(mrb_state*, mrb_func_t, mrb_int, const mrb_value*);
+MRB_API mrb_value mrb_proc_cfunc_env_get(mrb_state*, mrb_int);
+/* old name */
+#define mrb_cfunc_env_get(mrb, idx) mrb_proc_cfunc_env_get(mrb, idx)
+
+#ifdef MRB_METHOD_TABLE_INLINE
+
+#define MRB_METHOD_FUNC_FL ((uintptr_t)1U<<(sizeof(uintptr_t)*8-1))
+#define MRB_METHOD_FUNC_P(m) ((uintptr_t)(m)&MRB_METHOD_FUNC_FL)
+#define MRB_METHOD_FUNC(m) ((mrb_func_t)((uintptr_t)(m)&(~MRB_METHOD_FUNC_FL)))
+#define MRB_METHOD_FROM_FUNC(m,fn) m=(mrb_method_t)((struct RProc*)((uintptr_t)(fn)|MRB_METHOD_FUNC_FL))
+#define MRB_METHOD_FROM_PROC(m,pr) m=(mrb_method_t)(struct RProc*)(pr)
+#define MRB_METHOD_PROC_P(m) (!MRB_METHOD_FUNC_P(m))
+#define MRB_METHOD_PROC(m) ((struct RProc*)(m))
+#define MRB_METHOD_UNDEF_P(m) ((m)==0)
+
+#else
+
+#define MRB_METHOD_FUNC_P(m) ((m).func_p)
+#define MRB_METHOD_FUNC(m) ((m).func)
+#define MRB_METHOD_FROM_FUNC(m,fn) do{(m).func_p=TRUE;(m).func=(fn);}while(0)
+#define MRB_METHOD_FROM_PROC(m,pr) do{(m).func_p=FALSE;(m).proc=(pr);}while(0)
+#define MRB_METHOD_PROC_P(m) (!MRB_METHOD_FUNC_P(m))
+#define MRB_METHOD_PROC(m) ((m).proc)
+#define MRB_METHOD_UNDEF_P(m) ((m).proc==NULL)
+
+#endif /* MRB_METHOD_TABLE_INLINE */
+
+#define MRB_METHOD_CFUNC_P(m) (MRB_METHOD_FUNC_P(m)?TRUE:(MRB_METHOD_PROC(m)?(MRB_PROC_CFUNC_P(MRB_METHOD_PROC(m))):FALSE))
+#define MRB_METHOD_CFUNC(m) (MRB_METHOD_FUNC_P(m)?MRB_METHOD_FUNC(m):((MRB_METHOD_PROC(m)&&MRB_PROC_CFUNC_P(MRB_METHOD_PROC(m)))?MRB_PROC_CFUNC(MRB_METHOD_PROC(m)):NULL))
+
+KHASH_DECLARE(mt, mrb_sym, mrb_method_t, TRUE)
+
+MRB_END_DECL
+/* end mruby/proc.h */
+
+/* start mruby/variable.h */
+MRB_BEGIN_DECL
+
+typedef struct global_variable {
+  int   counter;
+  mrb_value *data;
+  mrb_value (*getter)(void);
+  void  (*setter)(void);
+  /* void  (*marker)(); */
+  /* int block_trace; */
+  /* struct trace_var *trace; */
+} global_variable;
+
+struct global_entry {
+  global_variable *var;
+  mrb_sym id;
+};
+
+mrb_value mrb_vm_special_get(mrb_state*, mrb_sym);
+void mrb_vm_special_set(mrb_state*, mrb_sym, mrb_value);
+mrb_value mrb_vm_iv_get(mrb_state*, mrb_sym);
+void mrb_vm_iv_set(mrb_state*, mrb_sym, mrb_value);
+mrb_value mrb_vm_cv_get(mrb_state*, mrb_sym);
+void mrb_vm_cv_set(mrb_state*, mrb_sym, mrb_value);
+mrb_value mrb_vm_const_get(mrb_state*, mrb_sym);
+void mrb_vm_const_set(mrb_state*, mrb_sym, mrb_value);
+MRB_API mrb_value mrb_const_get(mrb_state*, mrb_value, mrb_sym);
+MRB_API void mrb_const_set(mrb_state*, mrb_value, mrb_sym, mrb_value);
+MRB_API mrb_bool mrb_const_defined(mrb_state*, mrb_value, mrb_sym);
+MRB_API void mrb_const_remove(mrb_state*, mrb_value, mrb_sym);
+
+MRB_API mrb_bool mrb_iv_p(mrb_state *mrb, mrb_sym sym);
+MRB_API void mrb_iv_check(mrb_state *mrb, mrb_sym sym);
+MRB_API mrb_value mrb_obj_iv_get(mrb_state *mrb, struct RObject *obj, mrb_sym sym);
+MRB_API void mrb_obj_iv_set(mrb_state *mrb, struct RObject *obj, mrb_sym sym, mrb_value v);
+MRB_API mrb_bool mrb_obj_iv_defined(mrb_state *mrb, struct RObject *obj, mrb_sym sym);
+MRB_API mrb_value mrb_iv_get(mrb_state *mrb, mrb_value obj, mrb_sym sym);
+MRB_API void mrb_iv_set(mrb_state *mrb, mrb_value obj, mrb_sym sym, mrb_value v);
+MRB_API mrb_bool mrb_iv_defined(mrb_state*, mrb_value, mrb_sym);
+MRB_API mrb_value mrb_iv_remove(mrb_state *mrb, mrb_value obj, mrb_sym sym);
+MRB_API void mrb_iv_copy(mrb_state *mrb, mrb_value dst, mrb_value src);
+MRB_API mrb_bool mrb_const_defined_at(mrb_state *mrb, mrb_value mod, mrb_sym id);
+
+/**
+ * Get a global variable. Will return nil if the var does not exist
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     var = $value
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_value var = mrb_gv_get(mrb, sym);
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @return The value of that global variable. May be nil
+ */
+MRB_API mrb_value mrb_gv_get(mrb_state *mrb, mrb_sym sym);
+
+/**
+ * Set a global variable
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     $value = "foo"
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_gv_set(mrb, sym, mrb_str_new_lit("foo"));
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @param val The value of the global variable
+ */
+MRB_API void mrb_gv_set(mrb_state *mrb, mrb_sym sym, mrb_value val);
+
+/**
+ * Remove a global variable.
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     $value = nil
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_gv_remove(mrb, sym);
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @param val The value of the global variable
+ */
+MRB_API void mrb_gv_remove(mrb_state *mrb, mrb_sym sym);
+
+MRB_API mrb_value mrb_cv_get(mrb_state *mrb, mrb_value mod, mrb_sym sym);
+MRB_API void mrb_mod_cv_set(mrb_state *mrb, struct RClass * c, mrb_sym sym, mrb_value v);
+MRB_API void mrb_cv_set(mrb_state *mrb, mrb_value mod, mrb_sym sym, mrb_value v);
+MRB_API mrb_bool mrb_cv_defined(mrb_state *mrb, mrb_value mod, mrb_sym sym);
+mrb_value mrb_obj_iv_inspect(mrb_state*, struct RObject*);
+mrb_value mrb_mod_constants(mrb_state *mrb, mrb_value mod);
+mrb_value mrb_f_global_variables(mrb_state *mrb, mrb_value self);
+mrb_value mrb_obj_instance_variables(mrb_state*, mrb_value);
+mrb_value mrb_mod_class_variables(mrb_state*, mrb_value);
+mrb_value mrb_mod_cv_get(mrb_state *mrb, struct RClass * c, mrb_sym sym);
+mrb_bool mrb_mod_cv_defined(mrb_state *mrb, struct RClass * c, mrb_sym sym);
+
+/* GC functions */
+void mrb_gc_mark_gv(mrb_state*);
+void mrb_gc_free_gv(mrb_state*);
+void mrb_gc_mark_iv(mrb_state*, struct RObject*);
+size_t mrb_gc_mark_iv_size(mrb_state*, struct RObject*);
+void mrb_gc_free_iv(mrb_state*, struct RObject*);
+
+MRB_END_DECL
+/* end mruby/variable.h */
+
+/* start mruby/data.h */
+MRB_BEGIN_DECL
+
+/**
+ * Custom data type description.
+ */
+typedef struct mrb_data_type {
+  /** data type name */
+  const char *struct_name;
+
+  /** data type release function pointer */
+  void (*dfree)(mrb_state *mrb, void*);
+} mrb_data_type;
+
+struct RData {
+  MRB_OBJECT_HEADER;
+  struct iv_tbl *iv;
+  const mrb_data_type *type;
+  void *data;
+};
+
+MRB_API struct RData *mrb_data_object_alloc(mrb_state *mrb, struct RClass* klass, void *datap, const mrb_data_type *type);
+
+#define Data_Wrap_Struct(mrb,klass,type,ptr)\
+  mrb_data_object_alloc(mrb,klass,ptr,type)
+
+#define Data_Make_Struct(mrb,klass,strct,type,sval,data) do { \
+  sval = mrb_malloc(mrb, sizeof(strct));                     \
+  { static const strct zero = { 0 }; *sval = zero; };\
+  data = Data_Wrap_Struct(mrb,klass,type,sval);\
+} while (0)
+
+#define RDATA(obj)         ((struct RData *)(mrb_ptr(obj)))
+#define DATA_PTR(d)        (RDATA(d)->data)
+#define DATA_TYPE(d)       (RDATA(d)->type)
+MRB_API void mrb_data_check_type(mrb_state *mrb, mrb_value, const mrb_data_type*);
+MRB_API void *mrb_data_get_ptr(mrb_state *mrb, mrb_value, const mrb_data_type*);
+#define DATA_GET_PTR(mrb,obj,dtype,type) (type*)mrb_data_get_ptr(mrb,obj,dtype)
+MRB_API void *mrb_data_check_get_ptr(mrb_state *mrb, mrb_value, const mrb_data_type*);
+#define DATA_CHECK_GET_PTR(mrb,obj,dtype,type) (type*)mrb_data_check_get_ptr(mrb,obj,dtype)
+
+/* obsolete functions and macros */
+#define mrb_data_check_and_get(mrb,obj,dtype) mrb_data_get_ptr(mrb,obj,dtype)
+#define mrb_get_datatype(mrb,val,type) mrb_data_get_ptr(mrb, val, type)
+#define mrb_check_datatype(mrb,val,type) mrb_data_get_ptr(mrb, val, type)
+#define Data_Get_Struct(mrb,obj,type,sval) do {\
+  *(void**)&sval = mrb_data_get_ptr(mrb, obj, type); \
+} while (0)
+
+static inline void
+mrb_data_init(mrb_value v, void *ptr, const mrb_data_type *type)
+{
+  mrb_assert(mrb_type(v) == MRB_TT_DATA);
+  DATA_PTR(v) = ptr;
+  DATA_TYPE(v) = type;
+}
+
+MRB_END_DECL
+/* end mruby/data.h */
+
+/* start mruby/debug.h */
+MRB_BEGIN_DECL
+
+typedef enum mrb_debug_line_type {
+  mrb_debug_line_ary = 0,
+  mrb_debug_line_flat_map = 1
+} mrb_debug_line_type;
+
+typedef struct mrb_irep_debug_info_line {
+  uint32_t start_pos;
+  uint16_t line;
+} mrb_irep_debug_info_line;
+
+typedef struct mrb_irep_debug_info_file {
+  uint32_t start_pos;
+  const char *filename;
+  mrb_sym filename_sym;
+  uint32_t line_entry_count;
+  mrb_debug_line_type line_type;
+  union {
+    void *ptr;
+    mrb_irep_debug_info_line *flat_map;
+    uint16_t *ary;
+  } lines;
+} mrb_irep_debug_info_file;
+
+typedef struct mrb_irep_debug_info {
+  uint32_t pc_count;
+  uint16_t flen;
+  mrb_irep_debug_info_file **files;
+} mrb_irep_debug_info;
+
+/*
+ * get line from irep's debug info and program counter
+ * @return returns NULL if not found
+ */
+MRB_API const char *mrb_debug_get_filename(mrb_irep *irep, ptrdiff_t pc);
+
+/*
+ * get line from irep's debug info and program counter
+ * @return returns -1 if not found
+ */
+MRB_API int32_t mrb_debug_get_line(mrb_irep *irep, ptrdiff_t pc);
+
+MRB_API mrb_irep_debug_info_file *mrb_debug_info_append_file(
+    mrb_state *mrb, mrb_irep *irep,
+    uint32_t start_pos, uint32_t end_pos);
+MRB_API mrb_irep_debug_info *mrb_debug_info_alloc(mrb_state *mrb, mrb_irep *irep);
+MRB_API void mrb_debug_info_free(mrb_state *mrb, mrb_irep_debug_info *d);
+
+MRB_END_DECL
+/* end mruby/debug.h */
