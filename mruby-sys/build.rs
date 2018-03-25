@@ -48,7 +48,7 @@ impl Define {
         self
     }
     fn int64() -> Self {
-        Self::new("MRB_INT_64")
+        Self::new("MRB_INT64")
     }
     fn float32() -> Self {
         Self::new("MRB_USE_FLOAT")
