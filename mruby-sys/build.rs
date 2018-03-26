@@ -47,9 +47,6 @@ impl Define {
         self.value = Some(v);
         self
     }
-    fn int64() -> Self {
-        Self::new("MRB_INT64")
-    }
     fn float32() -> Self {
         Self::new("MRB_USE_FLOAT")
     }
@@ -85,9 +82,6 @@ impl MrubyConfig {
     }
     fn new() -> Self {
         let mut builder = Self { defines: vec![] };
-        if cfg!(feature = "int-64") {
-            builder.add(Define::int64());
-        }
         if cfg!(feature = "float-32") {
             builder.add(Define::float32());
         }

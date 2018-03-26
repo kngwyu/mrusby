@@ -73,6 +73,14 @@
 # define MRB_METHOD_TABLE_INLINE
 #endif
 
+#if !defined(MRB_INT16) && !defined(MRB_INT32) && !defined(MRB_INT64)
+# if defined(MRB_64BIT) && !defined(MRB_NAN_BOXING)
+#  define MRB_INT64
+# else
+#  define MRB_INT32
+# endif
+#endif
+
 #ifdef DISABLE_STDIO
 #define MRB_DISABLE_STDIO
 #endif
@@ -93,6 +101,7 @@
 # define TRUE 1
 #endif
 /* end mrbconf.h */
+
 #ifndef MRB_WITHOUT_FLOAT
 #ifndef FLT_EPSILON
 #define FLT_EPSILON (1.19209290e-07f)
