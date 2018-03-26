@@ -93,7 +93,7 @@ as it looks
 ## default
 None
 
-# `MRB_WORD_`BOXING
+# `MRB_WORD_BOXING`
 
 ## value
 declared or
