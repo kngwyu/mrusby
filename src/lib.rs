@@ -9,9 +9,7 @@ mod value;
 mod rawapi_test {
     use mruby_sys::*;
     use std::os::raw::c_char;
-    use std::mem::transmute;
     use std::ffi::CStr;
-    use std::io;
 
     fn mruby_open() -> *mut mrb_state {
         unsafe { mrb_open() }
@@ -28,6 +26,14 @@ mod rawapi_test {
             CStr::from_ptr(c_str).to_str().unwrap().to_owned()
         }
     }
+    fn cstr(s: &str) -> &CStr {
+        CStr::from_bytes_with_nul(s.as_bytes()).unwrap()
+    }
+    fn load_str_cxt(mrb: *mut mrb_state, s: &str, ctx: *mut mrbc_context) -> mrb_value {
+        let len = s.as_bytes().len();
+        let ptr = s.as_ptr() as *const c_char;
+        unsafe { mrb_load_nstring_cxt(mrb, ptr, len, ctx) }
+    }
 
     #[test]
     fn read_hash() {
@@ -40,14 +46,13 @@ mod rawapi_test {
         config[:b] = "Hello"
         "#;
         unsafe {
-            let s = s.as_ptr() as *const c_char;
-            mrb_load_string_cxt(mrb, s, cxt);
+            load_str_cxt(mrb, s, cxt);
             let config = mrb_load_string_cxt(mrb, "config".as_ptr() as *const c_char, cxt);
             assert_eq!(config.tt, mrb_vtype_MRB_TT_HASH);
-            let a = mrb_load_string_cxt(mrb, "config[:a]".as_ptr() as *const c_char, cxt);
+            let a = load_str_cxt(mrb, "config[:a]", cxt);
             assert_eq!(a.tt, mrb_vtype_MRB_TT_FIXNUM);
             assert_eq!(a.value.i, 100);
-            let size = mrb_funcall(mrb, config, "size".as_ptr() as *const c_char, 0, 0);
+            let size = mrb_funcall(mrb, config, cstr("size\0").as_ptr(), 0, 0);
             assert_eq!(size.tt, mrb_vtype_MRB_TT_FIXNUM);
             assert_eq!(size.value.i, 2);
         }
@@ -64,18 +69,15 @@ class Me
     'Me'
   end
 end
+Me
 "#;
         let s2 = "Me.new.my_name";
-        unsafe {
-            let s = s.as_ptr() as *const c_char;
-            let s2 = s2.as_ptr() as *const c_char;
-            mrb_load_string_cxt(mrb, s, cxt);
-            let my_name = mrb_load_string_cxt(mrb, s2, cxt);
-            assert_eq!(my_name.tt, mrb_vtype_MRB_TT_STRING);
-            let my_name = get_string(mrb, my_name);
-            println!("{}", my_name);
-            assert_eq!(my_name, "Me");
-        }
+        let me = load_str_cxt(mrb, s, cxt);
+        assert_eq!(me.tt, mrb_vtype_MRB_TT_CLASS);
+        let my_name = load_str_cxt(mrb, s2, cxt);
+        assert_eq!(my_name.tt, mrb_vtype_MRB_TT_STRING);
+        let my_name = get_string(mrb, my_name);
+        assert_eq!(my_name, "Me");
         mruby_close(mrb);
     }
 }
