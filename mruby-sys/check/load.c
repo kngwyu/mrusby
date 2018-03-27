@@ -4,6 +4,8 @@
 #include "mruby/array.h"
 #include "mruby/string.h"
 
+#include <assert.h>
+
 int main() {
     mrb_state* mrb = mrb_open();
     mrbc_context* cxt = mrbc_context_new(mrb);
@@ -19,14 +21,14 @@ int main() {
     mrb_value config = LOAD("config");
     printf("%d\n", config.tt);
     mrb_value len = mrb_funcall(mrb, config, "size", 0, 0);
-    printf("%d\n", len.value.i);
+    printf("%d\n", len.value.i + 10);
     struct Rhash* hash = config.value.p;
     mrb_value keys = mrb_hash_keys(mrb, config);
     printf("%d\n", keys.tt);
     struct RArray* array = keys.value.p;
     printf("%d\n", ARY_LEN(array));
 
-    mrb_value me = LOAD("class Me\n def my_name\n 'Me'\n end\n end\n Me");
+    mrb_value me = LOAD("class Me\n def my_name\n 'Me'\n end\n end");
     printf("%d\n", me.tt);
     mrb_value my_name = LOAD("Me.new.my_name");
     printf("%d\n", my_name.tt);
