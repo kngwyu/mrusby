@@ -4438,12 +4438,6 @@ extern "C" {
     pub fn mrb_eql(mrb: *mut mrb_state, obj1: mrb_value, obj2: mrb_value) -> mrb_bool;
 }
 extern "C" {
-    pub fn mrb_gc_arena_save(arg1: *mut mrb_state) -> ::std::os::raw::c_int;
-}
-extern "C" {
-    pub fn mrb_gc_arena_restore(arg1: *mut mrb_state, arg2: ::std::os::raw::c_int);
-}
-extern "C" {
     pub fn mrb_garbage_collect(arg1: *mut mrb_state);
 }
 extern "C" {
