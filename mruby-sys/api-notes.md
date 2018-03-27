@@ -1982,3 +1982,29 @@ extern "C" {
     ) -> mrb_value;
 }
 ```
+
+## in `variable.h`
+
+### const
+
+```c
+MRB_API mrb_value mrb_const_get(mrb_state*, mrb_value, mrb_sym);
+MRB_API void mrb_const_set(mrb_state*, mrb_value, mrb_sym, mrb_value);
+MRB_API mrb_bool mrb_const_defined(mrb_state*, mrb_value, mrb_sym);
+MRB_API void mrb_const_remove(mrb_state*, mrb_value, mrb_sym);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_const_get(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_sym) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_const_set(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_sym, arg4: mrb_value);
+}
+extern "C" {
+    pub fn mrb_const_defined(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_sym) -> mrb_bool;
+}
+extern "C" {
+    pub fn mrb_const_remove(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_sym);
+}
+```

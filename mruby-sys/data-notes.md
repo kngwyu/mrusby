@@ -2,6 +2,25 @@
 
 ## in `value.h`
 
+### `mrb_sym`
+
+```c
+typedef uint32_t mrb_sym;
+```
+
+```rust
+pub type mrb_sym = u32;
+```
+### `mrb_bool`
+
+```c
+typedef uint8_t mrb_bool;
+```
+
+```rust
+pub type mrb_bool = u8;
+```
+
 ### `mrb_int`
 
 ```c
@@ -33,7 +52,7 @@
 ```
 
 ```rust
-pub type mrb_int = i32;
+pub type mrb_int = i64;
 ```
 
 ### `mrb_float`

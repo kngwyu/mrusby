@@ -1,13 +1,13 @@
 [package]
 name = "mruby-sys"
 version = "0.0.1"
-authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
 build = "build.rs"
 
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.33"
+bindgen = "0.35"
 
 [features]
 default = ["utf8-string", "method-cache", "default-gembox"]
