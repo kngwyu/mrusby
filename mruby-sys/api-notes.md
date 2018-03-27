@@ -2008,3 +2008,84 @@ extern "C" {
     pub fn mrb_const_remove(arg1: *mut mrb_state, arg2: mrb_value, arg3: mrb_sym);
 }
 ```
+
+### vtable
+
+abbr
+
+### global variable
+
+```c
+/**
+ * Get a global variable. Will return nil if the var does not exist
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     var = $value
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_value var = mrb_gv_get(mrb, sym);
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @return The value of that global variable. May be nil
+ */
+MRB_API mrb_value mrb_gv_get(mrb_state *mrb, mrb_sym sym);
+
+/**
+ * Set a global variable
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     $value = "foo"
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_gv_set(mrb, sym, mrb_str_new_lit("foo"));
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @param val The value of the global variable
+ */
+MRB_API void mrb_gv_set(mrb_state *mrb, mrb_sym sym, mrb_value val);
+
+/**
+ * Remove a global variable.
+ *
+ * Example:
+ *
+ *     !!!ruby
+ *     # Ruby style
+ *     $value = nil
+ *
+ *     !!!c
+ *     // C style
+ *     mrb_sym sym = mrb_intern_lit(mrb, "$value");
+ *     mrb_gv_remove(mrb, sym);
+ *
+ * @param mrb The mruby state reference
+ * @param sym The name of the global variable
+ * @param val The value of the global variable
+ */
+MRB_API void mrb_gv_remove(mrb_state *mrb, mrb_sym sym);
+```
+
+```rust
+extern "C" {
+    pub fn mrb_gv_get(mrb: *mut mrb_state, sym: mrb_sym) -> mrb_value;
+}
+extern "C" {
+    pub fn mrb_gv_set(mrb: *mut mrb_state, sym: mrb_sym, val: mrb_value);
+}
+extern "C" {
+    pub fn mrb_gv_remove(mrb: *mut mrb_state, sym: mrb_sym);
+}
+```
+
