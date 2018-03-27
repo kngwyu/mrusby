@@ -1,7 +1,7 @@
 [package]
 name = "mrusby"
 version = "0.0.1"
-authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
 
 [features]
 default = ["utf8-string", "method-cache", "default-gembox"]
@@ -10,11 +10,9 @@ utf8-string = ["mruby-sys/utf8-string"]
 method-cache = ["mruby-sys/method-cache"]
 default-gembox = ["mruby-sys/default-gembox"]
 
-[dependencies]
-
 [dependencies.mruby-sys]
 path = "mruby-sys"
 version = "0.0.1"
 
 [workspace]
-members = ["mruby-sys"]
+members = ["mruby-sys", "mrusby-derive"]
