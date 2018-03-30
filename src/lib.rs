@@ -1,15 +1,16 @@
-#![feature(try_from)]
-
 extern crate mruby_sys;
 
+#[macro_use]
 mod error;
+#[allow(non_upper_case_globals)]
 mod value;
+mod vm;
 
 #[cfg(test)]
 mod rawapi_test {
     use mruby_sys::*;
-    use std::os::raw::c_char;
     use std::ffi::CStr;
+    use std::os::raw::c_char;
 
     fn mruby_open() -> *mut mrb_state {
         unsafe { mrb_open() }
