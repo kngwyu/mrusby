@@ -15,4 +15,4 @@ path = "mruby-sys"
 version = "0.0.1"
 
 [workspace]
-members = ["mruby-sys", "mrusby-derive"]
+members = ["mruby-sys"]
