@@ -1,34 +1,32 @@
 use mruby_sys::*;
-use std::marker::PhantomData;
 use std::os::raw::c_void;
-pub mod ptr;
-pub use self::ptr::MrbPtr;
-use error::{ErrorKind, MrbError, MrbResult};
+mod array;
+mod data;
+mod exception;
+mod hash;
+mod object;
+mod symbol;
+
+pub use self::array::MrbArray;
+pub use self::data::MrbData;
+pub use self::exception::MrbException;
+pub use self::hash::MrbHash;
+pub use self::object::MrbObject;
+pub use self::symbol::MrbSymbol;
+
+use vm::State;
+use error::{ErrorKind, MrbResult};
+
 /// MrbInt is same as pointer size (usually it's 64bit)
 pub type MrbInt = mrb_int;
 /// MrbFloat is f64 in default setting, but you can change by feature
 pub type MrbFloat = mrb_float;
 
-/// A type representing mruby Symbol
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct MrbSymbol<'cxt> {
-    inner: mrb_sym,
-    __marker: PhantomData<&'cxt ()>,
-}
-
-impl<'cxt> MrbSymbol<'cxt> {
-    fn new(sym: mrb_sym) -> MrbSymbol<'cxt> {
-        MrbSymbol {
-            inner: sym,
-            __marker: PhantomData,
-        }
-    }
-}
-
 /// rust representation of void*
 pub type MrbCptr = *mut c_void;
 
-// FreeとUndefはまとめてエラー型に分離してもいいかも？
+// FreeとUndefはエラー型
+// Exceptionは後でエラー型にいれるけど操作方法がわからんからとりあえずここ
 pub enum MrbValue<'cxt> {
     Bool(bool),
     Integer(MrbInt),
@@ -43,28 +41,21 @@ pub enum MrbValue<'cxt> {
     Hash,
     String,
     Range,
-    Exception,
+    Exception(MrbException<'cxt>),
     File,
     Env,
-    Data,
+    Data(MrbData<'cxt>),
     Fiber,
 }
 
 impl<'cxt> MrbValue<'cxt> {
-    pub fn from_raw(val: mrb_value) -> MrbResult<MrbValue<'cxt>> {
+    pub(crate) fn from_raw(state: &'cxt State, val: mrb_value) -> MrbResult<MrbValue<'cxt>> {
         let ty = val.tt;
         let make_err = |e: ErrorKind| {
             let err_str = format!("[MrbValue::from_raw] tt: {}", ty);
             Err(e.into_with(err_str))
         };
-        macro_rules! ref_cast {
-            ($t:ty) => {{
-                unsafe {
-                    let obj = val.value.p as *mut $t;
-                    get_ref!(obj, "[MrbValue::from_raw] tt: {}", ty)
-                }
-            }};
-        }
+        let p = || unsafe { val.value.p };
         match ty {
             mrb_vtype_MRB_TT_FALSE => Ok(MrbValue::Bool(false)),
             mrb_vtype_MRB_TT_FREE => make_err(ErrorKind::FreeVal),
@@ -87,33 +78,38 @@ impl<'cxt> MrbValue<'cxt> {
                 let c_ptr = val.value.p;
                 Ok(MrbValue::Cptr(c_ptr))
             },
-            mrb_vtype_MRB_TT_OBJECT => {
-                let obj = ref_cast!(RObject);
-                Ok(MrbValue::Object(MrbObject(obj)))
-            }
-            mrb_vtype_MRB_TT_CLASS => {
-                let class = ref_cast!(RClass);
-                Ok(MrbValue::Class(MrbClass(class)))
-            }
+            // mrb_vtype_MRB_TT_OBJECT => {
+            //     let obj = ref_cast!(RObject);
+            //     Ok(MrbValue::Object(MrbObject(obj)))
+            // }
+            // mrb_vtype_MRB_TT_CLASS => {
+            //     let class = ref_cast!(RClass);
+            //     Ok(MrbValue::Class(MrbClass(class)))
+            // }
             // mrb_vtype_MRB_TT_MODULE => {}
             // mrb_vtype_MRB_TT_ICLASS => {}
             // mrb_vtype_MRB_TT_SCLASS => {}
-            mrb_vtype_MRB_TT_PROC => {
-                let process = ref_cast!(RProc);
-                Ok(MrbValue::Proc(MrbProc(process)))
-            }
-
-            mrb_vtype_MRB_TT_ARRAY => {
-                let array = ref_cast!(RArray);
-                Ok(MrbValue::Array(MrbArray(array)))
-            }
+            // mrb_vtype_MRB_TT_PROC => {
+            //     let process = ref_cast!(RProc);
+            //     Ok(MrbValue::Proc(MrbProc(process)))
+            // }
+            // mrb_vtype_MRB_TT_ARRAY => {
+            //     let array = ref_cast!(RArray);
+            //     Ok(MrbValue::Array(MrbArray(array)))
+            // }
             // mrb_vtype_MRB_TT_HASH => {}
             // mrb_vtype_MRB_TT_STRING => {}
             // mrb_vtype_MRB_TT_RANGE => {}
-            // mrb_vtype_MRB_TT_EXCEPTION => {}
+            // mrb_vtype_MRB_TT_EXCEPTION => {
+            //     let exc = ref_cast!(RException);
+            //     Ok(MrbValue::Exception(MrbException(exc)))
+            // }
             // mrb_vtype_MRB_TT_FILE => {}
             // mrb_vtype_MRB_TT_ENV => {}
-            // mrb_vtype_MRB_TT_DATA => {}
+            mrb_vtype_MRB_TT_DATA => {
+                let res = chain!(MrbData::new(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Data(res))
+            }
             // mrb_vtype_MRB_TT_FIBER => {}
             // mrb_vtype_MRB_TT_ISTRUCT => {}
             // mrb_vtype_MRB_TT_BREAK => {}
@@ -123,20 +119,8 @@ impl<'cxt> MrbValue<'cxt> {
     }
 }
 
-/// A type representing mruby Object
-pub struct MrbObject<'cxt>(&'cxt mut RObject);
-
 /// A type representing mruby Class
 pub struct MrbClass<'cxt>(&'cxt mut RClass);
-
-/// A type representing mruby Array
-pub struct MrbArray<'cxt>(&'cxt mut RArray);
-
-/// A type representing mruby User Data
-pub struct MrbData<'cxt>(&'cxt mut RData);
-
-/// A type representing mruby Hash
-pub struct MrbHash<'cxt>(&'cxt mut RHash);
 
 /// A type representing mruby Env
 // TODO: more description
@@ -145,5 +129,6 @@ pub struct MrbEnv<'cxt>(&'cxt mut REnv);
 /// A type representing mruby Proc
 pub struct MrbProc<'cxt>(&'cxt mut RProc);
 
-/// A type representing mruby Exception
-pub struct MrbException<'cxt>(&'cxt mut RException);
+trait MrbPtrType<'cxt>: Sized {
+    fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self>;
+}
