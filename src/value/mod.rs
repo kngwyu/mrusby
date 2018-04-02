@@ -78,10 +78,10 @@ impl<'cxt> MrbValue<'cxt> {
                 let c_ptr = val.value.p;
                 Ok(MrbValue::Cptr(c_ptr))
             },
-            // mrb_vtype_MRB_TT_OBJECT => {
-            //     let obj = ref_cast!(RObject);
-            //     Ok(MrbValue::Object(MrbObject(obj)))
-            // }
+            mrb_vtype_MRB_TT_OBJECT => {
+                let res = chain!(MrbObject::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Object(res))
+            }
             // mrb_vtype_MRB_TT_CLASS => {
             //     let class = ref_cast!(RClass);
             //     Ok(MrbValue::Class(MrbClass(class)))
@@ -93,10 +93,10 @@ impl<'cxt> MrbValue<'cxt> {
             //     let process = ref_cast!(RProc);
             //     Ok(MrbValue::Proc(MrbProc(process)))
             // }
-            // mrb_vtype_MRB_TT_ARRAY => {
-            //     let array = ref_cast!(RArray);
-            //     Ok(MrbValue::Array(MrbArray(array)))
-            // }
+            mrb_vtype_MRB_TT_ARRAY => {
+                let res = chain!(MrbArray::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Array(res))
+            }
             // mrb_vtype_MRB_TT_HASH => {}
             // mrb_vtype_MRB_TT_STRING => {}
             // mrb_vtype_MRB_TT_RANGE => {}
@@ -107,7 +107,7 @@ impl<'cxt> MrbValue<'cxt> {
             // mrb_vtype_MRB_TT_FILE => {}
             // mrb_vtype_MRB_TT_ENV => {}
             mrb_vtype_MRB_TT_DATA => {
-                let res = chain!(MrbData::new(state, p()), "MrbValue::from_raw");
+                let res = chain!(MrbData::from_ptr(state, p()), "MrbValue::from_raw");
                 Ok(MrbValue::Data(res))
             }
             // mrb_vtype_MRB_TT_FIBER => {}
@@ -131,4 +131,33 @@ pub struct MrbProc<'cxt>(&'cxt mut RProc);
 
 trait MrbPtrType<'cxt>: Sized {
     fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self>;
+    unsafe fn into_val(&mut self) -> mrb_value;
 }
+
+macro_rules! impl_ptr_type {
+    ($rbname: ident, $rsname: ident, $tt: expr) => {
+        impl<'cxt> MrbPtrType<'cxt> for $rsname<'cxt> {
+            fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self> {
+                let data =
+                    unsafe { get_ref!(p as *mut $rbname, concat!(stringify!($rsname), "::new")) };
+                Ok(Self {
+                    data: data,
+                    state: s,
+                })
+            }
+            unsafe fn into_val(&mut self) -> mrb_value {
+                mrb_value {
+                    tt: $tt,
+                    value: mrb_value__bindgen_ty_1 {
+                        p: (self.data as *mut $rbname) as *mut c_void,
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_ptr_type!(RArray, MrbArray, mrb_vtype_MRB_TT_ARRAY);
+impl_ptr_type!(RHash, MrbHash, mrb_vtype_MRB_TT_HASH);
+impl_ptr_type!(RData, MrbData, mrb_vtype_MRB_TT_DATA);
+impl_ptr_type!(RObject, MrbObject, mrb_vtype_MRB_TT_OBJECT);

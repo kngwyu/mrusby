@@ -8,7 +8,7 @@ use std::ptr::{self, NonNull};
 use value::MrbValue;
 
 /// wrapper of mrb_state
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct State(NonNull<mrb_state>);
 
 impl State {
