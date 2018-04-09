@@ -1,21 +1,29 @@
 use mruby_sys::*;
 use std::os::raw::c_void;
+
 mod array;
+mod class;
 mod data;
+mod env;
 mod exception;
 mod hash;
 mod object;
+// mod proc;
 mod symbol;
 
 pub use self::array::MrbArray;
+pub use self::class::MrbClass;
 pub use self::data::MrbData;
+pub use self::env::MrbEnv;
 pub use self::exception::MrbException;
 pub use self::hash::MrbHash;
 pub use self::object::MrbObject;
+// pub use self::proc::MrbProc;
 pub use self::symbol::MrbSymbol;
 
-use vm::State;
 use error::{ErrorKind, MrbResult};
+use std::convert::{TryFrom, TryInto};
+use vm::State;
 
 /// MrbInt is same as pointer size (usually it's 64bit)
 pub type MrbInt = mrb_int;
@@ -23,10 +31,11 @@ pub type MrbInt = mrb_int;
 pub type MrbFloat = mrb_float;
 
 /// rust representation of void*
+// TODO: what is the use case?
 pub type MrbCptr = *mut c_void;
 
-// FreeとUndefはエラー型
-// Exceptionは後でエラー型にいれるけど操作方法がわからんからとりあえずここ
+/// Value user can use in Mrb VM or context
+// Free & Undef are defined in error type(also exception?)
 pub enum MrbValue<'cxt> {
     Bool(bool),
     Integer(MrbInt),
@@ -38,12 +47,12 @@ pub enum MrbValue<'cxt> {
     Module,
     Proc(MrbProc<'cxt>),
     Array(MrbArray<'cxt>),
-    Hash,
+    Hash(MrbHash<'cxt>),
     String,
     Range,
     Exception(MrbException<'cxt>),
     File,
-    Env,
+    Env(MrbEnv<'cxt>),
     Data(MrbData<'cxt>),
     Fiber,
 }
@@ -82,10 +91,10 @@ impl<'cxt> MrbValue<'cxt> {
                 let res = chain!(MrbObject::from_ptr(state, p()), "MrbValue::from_raw");
                 Ok(MrbValue::Object(res))
             }
-            // mrb_vtype_MRB_TT_CLASS => {
-            //     let class = ref_cast!(RClass);
-            //     Ok(MrbValue::Class(MrbClass(class)))
-            // }
+            mrb_vtype_MRB_TT_CLASS => {
+                let res = chain!(MrbClass::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Class(res))
+            }
             // mrb_vtype_MRB_TT_MODULE => {}
             // mrb_vtype_MRB_TT_ICLASS => {}
             // mrb_vtype_MRB_TT_SCLASS => {}
@@ -97,15 +106,21 @@ impl<'cxt> MrbValue<'cxt> {
                 let res = chain!(MrbArray::from_ptr(state, p()), "MrbValue::from_raw");
                 Ok(MrbValue::Array(res))
             }
-            // mrb_vtype_MRB_TT_HASH => {}
+            mrb_vtype_MRB_TT_HASH => {
+                let res = chain!(MrbHash::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Hash(res))
+            }
             // mrb_vtype_MRB_TT_STRING => {}
             // mrb_vtype_MRB_TT_RANGE => {}
-            // mrb_vtype_MRB_TT_EXCEPTION => {
-            //     let exc = ref_cast!(RException);
-            //     Ok(MrbValue::Exception(MrbException(exc)))
-            // }
+            mrb_vtype_MRB_TT_EXCEPTION => {
+                let res = chain!(MrbException::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Exception(res))
+            }
             // mrb_vtype_MRB_TT_FILE => {}
-            // mrb_vtype_MRB_TT_ENV => {}
+            mrb_vtype_MRB_TT_ENV => {
+                let res = chain!(MrbEnv::from_ptr(state, p()), "MrbValue::from_raw");
+                Ok(MrbValue::Env(res))
+            }
             mrb_vtype_MRB_TT_DATA => {
                 let res = chain!(MrbData::from_ptr(state, p()), "MrbValue::from_raw");
                 Ok(MrbValue::Data(res))
@@ -117,25 +132,54 @@ impl<'cxt> MrbValue<'cxt> {
             _ => unreachable!("unknown mruby value {}", ty),
         }
     }
+    pub(crate) fn get_raw(&mut self) -> mrb_value {
+        match *self {
+            MrbValue::Bool(b) => {
+                let tt = if b {
+                    mrb_vtype_MRB_TT_TRUE
+                } else {
+                    mrb_vtype_MRB_TT_FALSE
+                };
+                mrb_value {
+                    tt: tt,
+                    value: mrb_value__bindgen_ty_1 { i: 1 },
+                }
+            }
+            MrbValue::Integer(i) => mrb_value {
+                tt: mrb_vtype_MRB_TT_FIXNUM,
+                value: mrb_value__bindgen_ty_1 { i: i },
+            },
+            MrbValue::Symbol(ref symbol) => mrb_value {
+                tt: mrb_vtype_MRB_TT_SYMBOL,
+                value: mrb_value__bindgen_ty_1 { sym: symbol.raw() },
+            },
+            MrbValue::Float(f) => mrb_value {
+                tt: mrb_vtype_MRB_TT_FLOAT,
+                value: mrb_value__bindgen_ty_1 { f: f },
+            },
+            MrbValue::Cptr(ptr) => mrb_value {
+                tt: mrb_vtype_MRB_TT_CPTR,
+                value: mrb_value__bindgen_ty_1 { p: ptr },
+            },
+            MrbValue::Object(ref mut obj) => obj.get_val(),
+            MrbValue::Class(ref mut class) => class.get_val(),
+            MrbValue::Array(ref mut array) => array.get_val(),
+            MrbValue::Hash(ref mut hash) => hash.get_val(),
+            MrbValue::Exception(ref mut exc) => exc.get_val(),
+            MrbValue::Env(ref mut env) => env.get_val(),
+            MrbValue::Data(ref mut dat) => dat.get_val(),
+            _ => unimplemented!(),
+        }
+    }
 }
-
-/// A type representing mruby Class
-pub struct MrbClass<'cxt>(&'cxt mut RClass);
-
-/// A type representing mruby Env
-// TODO: more description
-pub struct MrbEnv<'cxt>(&'cxt mut REnv);
-
-/// A type representing mruby Proc
-pub struct MrbProc<'cxt>(&'cxt mut RProc);
 
 trait MrbPtrType<'cxt>: Sized {
     fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self>;
-    unsafe fn into_val(&mut self) -> mrb_value;
+    fn get_val(&mut self) -> mrb_value;
 }
 
 macro_rules! impl_ptr_type {
-    ($rbname: ident, $rsname: ident, $tt: expr) => {
+    ($rbname:ident, $rsname:ident, $tt:expr) => {
         impl<'cxt> MrbPtrType<'cxt> for $rsname<'cxt> {
             fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self> {
                 let data =
@@ -145,7 +189,7 @@ macro_rules! impl_ptr_type {
                     state: s,
                 })
             }
-            unsafe fn into_val(&mut self) -> mrb_value {
+            fn get_val(&mut self) -> mrb_value {
                 mrb_value {
                     tt: $tt,
                     value: mrb_value__bindgen_ty_1 {
@@ -158,6 +202,15 @@ macro_rules! impl_ptr_type {
 }
 
 impl_ptr_type!(RArray, MrbArray, mrb_vtype_MRB_TT_ARRAY);
-impl_ptr_type!(RHash, MrbHash, mrb_vtype_MRB_TT_HASH);
+impl_ptr_type!(RClass, MrbClass, mrb_vtype_MRB_TT_CLASS);
 impl_ptr_type!(RData, MrbData, mrb_vtype_MRB_TT_DATA);
+impl_ptr_type!(REnv, MrbEnv, mrb_vtype_MRB_TT_ENV);
+impl_ptr_type!(RException, MrbException, mrb_vtype_MRB_TT_EXCEPTION);
+impl_ptr_type!(RHash, MrbHash, mrb_vtype_MRB_TT_HASH);
 impl_ptr_type!(RObject, MrbObject, mrb_vtype_MRB_TT_OBJECT);
+// impl_ptr_type!(RProc, MrbProc, mrb_vtype_MRB_TT_PROC);
+
+/// A type representing mruby Proc
+pub struct MrbProc<'cxt>(&'cxt mut RProc);
+
+pub trait MrbConvertible<'cxt>: TryInto<MrbValue<'cxt>> + TryFrom<MrbValue<'cxt>> {}

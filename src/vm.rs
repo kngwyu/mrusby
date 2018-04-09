@@ -1,9 +1,8 @@
 use error::{ErrorKind, MrbResult};
 use mruby_sys::{mrb_close, mrb_load_nstring_cxt, mrb_open, mrb_state, mrbc_context,
                 mrbc_context_new};
-use std::collections::HashMap;
-use std::os::raw::c_char;
 use std::mem::transmute;
+use std::os::raw::c_char;
 use std::ptr::{self, NonNull};
 use value::MrbValue;
 
@@ -22,7 +21,7 @@ impl State {
     fn as_ptr(&self) -> *mut mrb_state {
         self.0.as_ptr()
     }
-    fn as_ref<'vm>(&self) -> &'vm Self {
+    fn as_ref<'a>(&self) -> &'a Self {
         unsafe { transmute(self) }
     }
 }
@@ -31,7 +30,6 @@ impl State {
 pub struct MrbVm<'vm> {
     pub(crate) state: State,
     main_cxt: MrbContext<'vm>,
-    named_cxts: HashMap<String, MrbContext<'vm>>,
 }
 
 impl<'vm> MrbVm<'vm> {
@@ -42,9 +40,11 @@ impl<'vm> MrbVm<'vm> {
             Ok(MrbVm {
                 state: state,
                 main_cxt: cxt,
-                named_cxts: HashMap::new(),
             })
         }
+    }
+    pub fn cxt(&mut self) -> &mut MrbContext<'vm> {
+        &mut self.main_cxt
     }
 }
 
@@ -63,7 +63,7 @@ pub struct MrbContext<'vm> {
 }
 
 impl<'vm> MrbContext<'vm> {
-    fn new(state: &'vm State) -> MrbResult<MrbContext<'vm>> {
+    fn new(state: &'vm State) -> MrbResult<Self> {
         let cxt = unsafe {
             let cxt = mrbc_context_new(state.as_ptr());
             get_ref!(cxt, "[MrbContext::new] mrbc_context_new returned Null")
@@ -73,17 +73,27 @@ impl<'vm> MrbContext<'vm> {
             cxt: Some(cxt),
         })
     }
-    // pub fn exec_str<'cxt>(&mut self, s: &str) -> MrbResult<MrbValue<'cxt>> {
-    //     let str_len = s.as_bytes().len();
-    //     let str_p = s.as_ptr() as *const c_char;
-    //     let val = unsafe {
-    //         let cxt_p = if let Some(ref mut cxt) = self.cxt {
-    //             *cxt as *mut mrbc_context
-    //         } else {
-    //             ptr::null_mut::<mrbc_context>()
-    //         };
-    //         mrb_load_nstring_cxt(self.state as *mut mrb_state, str_p, str_len, cxt_p)
-    //     };
-    //     MrbValue::from_raw(val)
-    // }
+
+    pub fn reset(&mut self) -> MrbResult<&mut Self> {
+        let cxt = unsafe {
+            let cxt = mrbc_context_new(self.state.as_ptr());
+            get_ref!(cxt, "[MrbContext::new] mrbc_context_new returned Null")
+        };
+        self.cxt = Some(cxt);
+        Ok(self)
+    }
+
+    pub fn exec_str<'cxt>(&mut self, s: &str) -> MrbResult<MrbValue<'cxt>> {
+        let str_len = s.as_bytes().len();
+        let str_p = s.as_ptr() as *const c_char;
+        let val = unsafe {
+            let cxt_p = if let Some(ref mut cxt) = self.cxt {
+                *cxt as *mut mrbc_context
+            } else {
+                ptr::null_mut::<mrbc_context>()
+            };
+            mrb_load_nstring_cxt(self.state.as_ptr(), str_p, str_len, cxt_p)
+        };
+        MrbValue::from_raw(self.state.as_ref(), val)
+    }
 }

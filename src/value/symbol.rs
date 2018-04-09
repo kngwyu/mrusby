@@ -9,10 +9,13 @@ pub struct MrbSymbol<'cxt> {
 }
 
 impl<'cxt> MrbSymbol<'cxt> {
-    pub(in value) fn new(sym: mrb_sym) -> MrbSymbol<'cxt> {
+    pub(super) fn new(sym: mrb_sym) -> MrbSymbol<'cxt> {
         MrbSymbol {
             inner: sym,
             __marker: PhantomData,
         }
+    }
+    pub(super) fn raw(&self) -> mrb_sym {
+        self.inner
     }
 }
