@@ -1,14 +1,14 @@
 extern crate bindgen;
 
-use std::error::Error;
 use std::env;
+use std::error::Error;
 use std::fmt;
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufReader, BufWriter};
-use std::str;
+use std::path::PathBuf;
 use std::process::Command;
+use std::str;
 
 fn main() {
     let lib_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("host/lib");
@@ -66,10 +66,11 @@ MRuby::Build.new do |conf|
   if ENV['VisualStudioVersion'] || ENV['VSINSTALLDIR']
     toolchain :visualcpp
   else
-    toolchain :clang
+    toolchain :gcc
   end
   conf.gembox 'default'
   conf.bins = []
+  conf.cc.flags = [%w(-g -std=gnu99 -O3 -Wall -Werror-implicit-function-declaration -Wdeclaration-after-statement -Wwrite-strings -fPIC)]
   conf.cc.defines = %w("#;
 
 struct MrubyConfig {
