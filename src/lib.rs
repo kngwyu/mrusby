@@ -49,7 +49,7 @@ mod rawapi_test {
         "#;
         unsafe {
             load_str_cxt(mrb, s, cxt);
-            let config = mrb_load_string_cxt(mrb, "config".as_ptr() as *const c_char, cxt);
+            let config = load_str_cxt(mrb, "config", cxt);
             assert_eq!(config.tt, mrb_vtype_MRB_TT_HASH);
             let a = load_str_cxt(mrb, "config[:a]", cxt);
             assert_eq!(a.tt, mrb_vtype_MRB_TT_FIXNUM);
