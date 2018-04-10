@@ -1,6 +1,3 @@
-use mruby_sys::*;
-use std::os::raw::c_void;
-
 mod array;
 mod class;
 mod data;
@@ -10,6 +7,11 @@ mod hash;
 mod object;
 // mod proc;
 mod symbol;
+
+use mruby_sys::*;
+use num_traits::{NumCast, PrimInt};
+use std::os::raw::c_void;
+use std::fmt;
 
 pub use self::array::MrbArray;
 pub use self::class::MrbClass;
@@ -21,7 +23,7 @@ pub use self::object::MrbObject;
 // pub use self::proc::MrbProc;
 pub use self::symbol::MrbSymbol;
 
-use error::{ErrorKind, MrbResult};
+use error::{ErrorKind, MrbError, MrbResult};
 use std::convert::{TryFrom, TryInto};
 use vm::State;
 
@@ -36,6 +38,7 @@ pub type MrbCptr = *mut c_void;
 
 /// Value user can use in Mrb VM or context
 // Free & Undef are defined in error type(also exception?)
+#[derive(Debug)]
 pub enum MrbValue<'cxt> {
     Bool(bool),
     Integer(MrbInt),
@@ -45,7 +48,7 @@ pub enum MrbValue<'cxt> {
     Object(MrbObject<'cxt>),
     Class(MrbClass<'cxt>),
     Module,
-    Proc(MrbProc<'cxt>),
+    Proc,
     Array(MrbArray<'cxt>),
     Hash(MrbHash<'cxt>),
     String,
@@ -179,7 +182,7 @@ trait MrbPtrType<'cxt>: Sized {
 }
 
 macro_rules! impl_ptr_type {
-    ($rbname:ident, $rsname:ident, $tt:expr) => {
+    ($rbname: ident, $rsname: ident, $tt: expr) => {
         impl<'cxt> MrbPtrType<'cxt> for $rsname<'cxt> {
             fn from_ptr(s: &'cxt State, p: *mut c_void) -> MrbResult<Self> {
                 let data =
@@ -198,6 +201,12 @@ macro_rules! impl_ptr_type {
                 }
             }
         }
+        // TODO: more detailed debug info
+        impl<'cxt> fmt::Debug for $rsname<'cxt> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{}", stringify!($rsname))
+            }
+        }
     };
 }
 
@@ -213,4 +222,63 @@ impl_ptr_type!(RObject, MrbObject, mrb_vtype_MRB_TT_OBJECT);
 /// A type representing mruby Proc
 pub struct MrbProc<'cxt>(&'cxt mut RProc);
 
-pub trait MrbConvertible<'cxt>: TryInto<MrbValue<'cxt>> + TryFrom<MrbValue<'cxt>> {}
+/// Type conversion trait(for derive)
+pub trait MrbConvert<'cxt>: TryInto<MrbValue<'cxt>> + TryFrom<MrbValue<'cxt>> {}
+
+impl<'cxt, T> MrbConvert<'cxt> for T
+where
+    T: TryInto<MrbValue<'cxt>> + TryFrom<MrbValue<'cxt>>,
+{
+}
+
+/// utility trait to convert result from NumCast or other rust failure
+pub(crate) trait TryCast<T> {
+    fn cast(self) -> MrbResult<T>;
+}
+
+impl<T, U> TryCast<T> for U
+where
+    T: NumCast,
+    U: NumCast,
+{
+    fn cast(self) -> MrbResult<T> {
+        if let Some(res) = T::from(self) {
+            Ok(res)
+        } else {
+            Err(ErrorKind::NumCast.into())
+        }
+    }
+}
+
+macro_rules! impl_fixnum_conv {
+    ($t: ty) => {
+        impl<'cxt> TryFrom<$t> for MrbValue<'cxt> {
+            type Error = MrbError;
+            fn try_from(t: $t) -> MrbResult<MrbValue<'cxt>> {
+                Ok(MrbValue::Integer(t.cast()?))
+            }
+        }
+        impl<'cxt> TryInto<$t> for MrbValue<'cxt> {
+            type Error = MrbError;
+            fn try_into(self) -> MrbResult<$t> {
+                if let MrbValue::Integer(i) = self {
+                    i.cast()
+                } else {
+                    let err_msg = format!("{:?} => {}", self, stringify!($t));
+                    Err(ErrorKind::From.into_with(err_msg))
+                }
+            }
+        }
+    };
+}
+
+impl_fixnum_conv!(u8);
+impl_fixnum_conv!(u16);
+impl_fixnum_conv!(u32);
+impl_fixnum_conv!(u64);
+impl_fixnum_conv!(usize);
+impl_fixnum_conv!(i8);
+impl_fixnum_conv!(i16);
+impl_fixnum_conv!(i32);
+impl_fixnum_conv!(i64);
+impl_fixnum_conv!(isize);

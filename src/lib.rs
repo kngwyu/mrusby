@@ -1,4 +1,5 @@
 extern crate mruby_sys;
+extern crate num_traits;
 
 #[macro_use]
 mod error;

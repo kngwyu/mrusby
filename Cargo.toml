@@ -1,18 +1,21 @@
 [package]
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
 name = "mrusby"
 version = "0.0.1"
-authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
 
-[features]
-default = ["utf8-string", "method-cache", "default-gembox"]
-float-32 = ["mruby-sys/float-32"]
-utf8-string = ["mruby-sys/utf8-string"]
-method-cache = ["mruby-sys/method-cache"]
-default-gembox = ["mruby-sys/default-gembox"]
+[dependencies]
+num-traits = "0.2.2"
 
 [dependencies.mruby-sys]
 path = "mruby-sys"
 version = "0.0.1"
+
+[features]
+default = ["utf8-string", "method-cache", "default-gembox"]
+default-gembox = ["mruby-sys/default-gembox"]
+float-32 = ["mruby-sys/float-32"]
+method-cache = ["mruby-sys/method-cache"]
+utf8-string = ["mruby-sys/utf8-string"]
 
 [workspace]
 members = ["mruby-sys"]

@@ -1,4 +1,3 @@
-use mruby_sys::*;
 use std::error::Error;
 use std::fmt;
 
@@ -91,16 +90,22 @@ macro_rules! get_ref {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     FreeVal,
+    From,
+    Into,
     Null,
+    NumCast,
     Undefined,
 }
 
 impl ErrorKind {
     fn as_str(&self) -> &str {
         use self::ErrorKind::*;
-        match *self {
+        match self {
             FreeVal => "FreeVal(invalid access to already freed variable)",
+            From => "Conversion from MrbValue failed",
+            Into => "Conversion into MrbValue failed",
             Null => "Null(access to null pointer)",
+            NumCast => "NumCast error(not mruby problem)",
             Undefined => "Undefined(access to undefined value or methods)",
         }
     }
