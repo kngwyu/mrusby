@@ -8,7 +8,7 @@ use value::MrbValue;
 
 /// wrapper of mrb_state
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct State(NonNull<mrb_state>);
+pub struct State(NonNull<mrb_state>);
 
 impl State {
     fn new(state: *mut mrb_state) -> MrbResult<State> {
@@ -18,10 +18,10 @@ impl State {
             Err(ErrorKind::Null.into_with("[State::new] mrb_state is Null"))
         }
     }
-    fn as_ptr(&self) -> *mut mrb_state {
+    pub(crate) fn as_ptr(&self) -> *mut mrb_state {
         self.0.as_ptr()
     }
-    fn as_ref<'a>(&self) -> &'a Self {
+    pub(crate) fn as_ref<'a>(&self) -> &'a Self {
         unsafe { transmute(self) }
     }
 }

@@ -90,10 +90,9 @@ macro_rules! get_ref {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     FreeVal,
-    From,
-    Into,
     Null,
     NumCast,
+    OtherType,
     Undefined,
 }
 
@@ -102,10 +101,9 @@ impl ErrorKind {
         use self::ErrorKind::*;
         match self {
             FreeVal => "FreeVal(invalid access to already freed variable)",
-            From => "Conversion from MrbValue failed",
-            Into => "Conversion into MrbValue failed",
             Null => "Null(access to null pointer)",
             NumCast => "NumCast error(not mruby problem)",
+            OtherType => "Other variant found when conveting from MrbValue",
             Undefined => "Undefined(access to undefined value or methods)",
         }
     }
