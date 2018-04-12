@@ -1,5 +1,6 @@
 extern crate mruby_sys;
 extern crate num_traits;
+extern crate tuple_map;
 
 #[macro_use]
 mod error;
@@ -18,7 +19,7 @@ mod rawapi_test {
     }
     fn mruby_close(mrb: *mut mrb_state) {
         unsafe { mrb_close(mrb) }
-    }
+    }b
     fn compiler_context(mrb: *mut mrb_state) -> *mut mrbc_context {
         unsafe { mrbc_context_new(mrb) }
     }

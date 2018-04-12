@@ -215,6 +215,19 @@ impl<'cxt> FromMrb<'cxt> for MrbValue<'cxt> {
     }
 }
 
+/// Utility trait for mrb_value => Some type
+pub(crate) trait FromMrbRaw<'cxt>: Sized {
+    fn from_mrb_raw(val: mrb_value, state: State<'cxt>) -> MrbResult<Self>;
+}
+
+impl<'cxt, T: FromMrb<'cxt>> FromMrbRaw<'cxt> for T {
+    fn from_mrb_raw(val: mrb_value, state: State<'cxt>) -> MrbResult<Self> {
+        // this is just a utility function, so don't use chain! here.
+        let val = MrbValue::from_raw(state, val)?;
+        T::from_mrb(val)
+    }
+}
+
 /// utility trait to convert None to MrbError in some contexts
 pub(crate) trait ErrCast<T> {
     fn cast(self) -> MrbResult<T>;

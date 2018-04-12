@@ -5,6 +5,7 @@ version = "0.0.1"
 
 [dependencies]
 num-traits = "0.2.2"
+tuple-map = "0.2"
 
 [dependencies.mruby-sys]
 path = "mruby-sys"

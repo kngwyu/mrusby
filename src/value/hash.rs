@@ -1,4 +1,4 @@
-use super::{FromMrb, IntoMrb, MrbPtrType, MrbValue};
+use super::{FromMrb, FromMrbRaw, IntoMrb, MrbPtrType, MrbValue};
 use error::{ErrorKind, MrbError, MrbResult};
 use mruby_sys::{mrb_hash_delete_key, mrb_hash_empty_p, mrb_hash_get, mrb_hash_keys, mrb_hash_new,
                 mrb_hash_set, RHash};
@@ -28,8 +28,7 @@ impl<'cxt> MrbHash<'cxt> {
         let hash_raw = self.as_val();
         let key_raw = chain!(key.into_mrb(self.state), "[MrbHash::delete]").as_raw();
         let val = unsafe { mrb_hash_delete_key(self.state.as_ptr(), hash_raw, key_raw) };
-        let val = chain!(MrbValue::from_raw(self.state, val), "[MrbHash::delete]");
-        V::from_mrb(val)
+        V::from_mrb_raw(val, self.state).map_err(|e| e.chain("[MrbHash::delete]"))
     }
 
     /// Get a value from mruy hash class.
@@ -47,8 +46,7 @@ impl<'cxt> MrbHash<'cxt> {
         let hash_raw = self.as_val();
         let key_raw = chain!(key.into_mrb(self.state), "[MrbHash::get]").as_raw();
         let val = unsafe { mrb_hash_get(self.state.as_ptr(), hash_raw, key_raw) };
-        let val = chain!(MrbValue::from_raw(self.state, val), "[MrbHash::get]");
-        V::from_mrb(val)
+        V::from_mrb_raw(val, self.state).map_err(|e| e.chain("[Mrbhash::get]"))
     }
 
     /// Check if the mruby hash class is empty or not
@@ -59,8 +57,7 @@ impl<'cxt> MrbHash<'cxt> {
     pub fn is_empty(&self) -> MrbResult<bool> {
         let hash_raw = self.as_val();
         let val = unsafe { mrb_hash_empty_p(self.state.as_ptr(), hash_raw) };
-        let val = chain!(MrbValue::from_raw(self.state, val), "[MrbHash::is_empty]");
-        Ok(chain!(bool::from_mrb(val), "[MrbHash::is_empty]"))
+        bool::from_mrb_raw(val, self.state).map_err(|e| e.chain("[MrbHash::is_empty]"))
     }
     /// Make mruby hash class (just make, not register it to mruby state).
     /// Equivalent to
@@ -69,8 +66,7 @@ impl<'cxt> MrbHash<'cxt> {
     /// ```
     pub fn new(vm: &'cxt MrbVm) -> MrbResult<Self> {
         let raw_val = unsafe { mrb_hash_new(vm.state().as_ptr()) };
-        let val = chain!(MrbValue::from_raw(vm.state(), raw_val), "[MrbHash::new]");
-        Self::from_mrb(val)
+        Self::from_mrb_raw(raw_val, vm.state()).map_err(|e| e.chain("[MrbHash::new]"))
     }
 
     /// Set a value to mruy hash class.

@@ -53,7 +53,7 @@ impl<'vm> MrbVm<'vm> {
         &self.main_cxt
     }
     pub fn disposable(&self) -> &MrbContext<'vm> {
-        q & self.null_cxt
+        &self.null_cxt
     }
 }
 

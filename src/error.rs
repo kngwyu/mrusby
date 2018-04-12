@@ -60,33 +60,6 @@ macro_rules! chain {
     }};
 }
 
-macro_rules! get_ref {
-    ($ptr:expr) => {
-        if let Some(r) = $ptr.as_mut() {
-            r
-        } else {
-            return Err(ErrorKind::Null.into());
-        }
-    };
-    ($ptr:expr,) => {
-        get_ref!($ptr);
-    };
-    ($ptr:expr, $msg:expr) => {
-        if let Some(r) = $ptr.as_mut() {
-            r
-        } else {
-            return Err(ErrorKind::Null.into_with($msg));
-        }
-    };
-    ($ptr:expr, $fmt:expr, $($arg:tt)+) => {
-         if let Some(r) = $ptr.as_mut() {
-            r
-        } else {
-            return Err(ErrorKind::Null.into_with(format!($fmt, $($arg)+)));
-        }
-    };
-}
-
 macro_rules! non_null {
      ($ptr:expr) => {
         if let Some(r) = NonNull::new($ptr) {
