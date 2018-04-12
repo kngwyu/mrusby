@@ -1,3 +1,5 @@
+//! wrapping and type conversion for mruby data types
+
 mod array;
 mod class;
 mod data;
@@ -33,7 +35,7 @@ pub type MrbInt = mrb_int;
 pub type MrbFloat = mrb_float;
 
 /// rust representation of void*
-// TODO: what is the use case?
+// TODO: what's the use case?
 pub type MrbCptr = *mut c_void;
 
 /// Value user can use in Mrb VM or context
@@ -78,7 +80,7 @@ impl<'cxt> MrbValue<'cxt> {
             },
             mrb_vtype_MRB_TT_SYMBOL => unsafe {
                 let sym = val.value.sym;
-                let sym = MrbSymbol::new(sym);
+                let sym = MrbSymbol::new(sym, state);
                 Ok(MrbValue::Symbol(sym))
             },
             mrb_vtype_MRB_TT_UNDEF => make_err(ErrorKind::Undefined),
@@ -201,12 +203,12 @@ where
 {
 }
 
-/// utility trait to convert None to MrbError in various contexts
-pub(crate) trait TryNumCast<T> {
+/// utility trait to convert None to MrbError in some contexts
+pub(crate) trait ErrCast<T> {
     fn cast(self) -> MrbResult<T>;
 }
 
-impl<T, U> TryNumCast<T> for U
+impl<T, U> ErrCast<T> for U
 where
     T: NumCast,
     U: NumCast,
@@ -221,7 +223,7 @@ where
 }
 
 macro_rules! impl_conv {
-    ($t: ty, $var: ident) => {
+    ($t:ty, $var:ident) => {
         impl<'cxt> IntoMrb<'cxt> for $t {
             fn into_mrb(self, _state: State<'cxt>) -> MrbResult<MrbValue<'cxt>> {
                 Ok(MrbValue::$var(self.cast()?))
@@ -263,14 +265,10 @@ trait MrbPtrType<'cxt>: Sized {
 }
 
 macro_rules! impl_ptr_type {
-    ($rbname: ident, $rsname: ident, $var: ident, $tt: expr) => {
+    ($rbname:ident, $rsname:ident, $var:ident, $tt:expr) => {
         impl<'cxt> MrbPtrType<'cxt> for $rsname<'cxt> {
             fn from_ptr(s: State<'cxt>, p: *mut c_void) -> MrbResult<Self> {
-                let data = if let Some(s) = NonNull::new(p as *mut $rbname) {
-                    s
-                } else {
-                    return Err(ErrorKind::Null.into_with("[MrbPtrType::new]"));
-                };
+                let data = non_null!(p as *mut $rbname, "[MrbPtrType::from_ptr]");
                 Ok(Self {
                     data: data,
                     state: s,

@@ -1,18 +1,19 @@
 use mruby_sys::mrb_sym;
 use std::marker::PhantomData;
 
+use vm::State;
 /// A type representing mruby Symbol
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct MrbSymbol<'cxt> {
     inner: mrb_sym,
-    __marker: PhantomData<&'cxt ()>,
+    state: State<'cxt>,
 }
 
 impl<'cxt> MrbSymbol<'cxt> {
-    pub(super) fn new(sym: mrb_sym) -> MrbSymbol<'cxt> {
+    pub(super) fn new(sym: mrb_sym, state: State<'cxt>) -> MrbSymbol<'cxt> {
         MrbSymbol {
             inner: sym,
-            __marker: PhantomData,
+            state: state,
         }
     }
     pub(super) fn raw(&self) -> mrb_sym {

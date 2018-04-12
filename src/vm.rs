@@ -1,14 +1,14 @@
 use error::{ErrorKind, MrbResult};
 use mruby_sys::{mrb_close, mrb_load_nstring_cxt, mrb_open, mrb_state, mrbc_context,
                 mrbc_context_new};
+use std::marker::PhantomData;
 use std::mem::transmute;
 use std::os::raw::c_char;
 use std::ptr::{self, NonNull};
-use std::marker::PhantomData;
 use value::MrbValue;
 
 /// wrapper of mrb_state
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 pub struct State<'vm> {
     data: NonNull<mrb_state>,
     __marker: PhantomData<&'vm !>,
@@ -16,14 +16,11 @@ pub struct State<'vm> {
 
 impl<'vm> State<'vm> {
     fn new(state: *mut mrb_state) -> MrbResult<Self> {
-        if let Some(s) = NonNull::new(state) {
-            Ok(State {
-                data: s,
-                __marker: PhantomData,
-            })
-        } else {
-            Err(ErrorKind::Null.into_with("[State::new] mrb_state is Null"))
-        }
+        let data = non_null!(state, "[State::new] mrb_state is Null");
+        Ok(State {
+            data: data,
+            __marker: PhantomData,
+        })
     }
     pub(crate) fn as_ptr(&self) -> *mut mrb_state {
         self.data.as_ptr()

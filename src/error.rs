@@ -87,6 +87,33 @@ macro_rules! get_ref {
     };
 }
 
+macro_rules! non_null {
+     ($ptr:expr) => {
+        if let Some(r) = NonNull::new($ptr) {
+            r
+        } else {
+            return Err(ErrorKind::Null.into());
+        }
+    };
+    ($ptr:expr,) => {
+        get_ref!($ptr);
+    };
+    ($ptr:expr, $msg:expr) => {
+        if let Some(r) = NonNull::new($ptr) {
+            r
+        } else {
+            return Err(ErrorKind::Null.into_with($msg));
+        }
+    };
+    ($ptr:expr, $fmt:expr, $($arg:tt)+) => {
+         if let Some(r) = NonNull::new($ptr) {
+            r
+        } else {
+            return Err(ErrorKind::Null.into_with(format!($fmt, $($arg)+)));
+        }
+    };
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     FreeVal,
