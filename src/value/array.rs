@@ -6,7 +6,7 @@ use vm::State;
 /// A type representing mruby Array
 pub struct MrbArray<'cxt> {
     pub(super) data: NonNull<RArray>,
-    pub(super) state: &'cxt State,
+    pub(super) state: State<'cxt>,
 }
 
 impl<'cxt> MrbArray<'cxt> {}

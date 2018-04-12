@@ -6,7 +6,7 @@ use vm::State;
 /// A type representing mruby User Data
 pub struct MrbData<'cxt> {
     pub(super) data: NonNull<RData>,
-    pub(super) state: &'cxt State,
+    pub(super) state: State<'cxt>,
 }
 
 impl<'cxt> MrbData<'cxt> {}

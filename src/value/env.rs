@@ -8,7 +8,7 @@ use vm::State;
 /// A type representing mruby Env
 pub struct MrbEnv<'cxt> {
     pub(super) data: NonNull<REnv>,
-    pub(super) state: &'cxt State,
+    pub(super) state: State<'cxt>,
 }
 
 impl<'cxt> MrbEnv<'cxt> {}

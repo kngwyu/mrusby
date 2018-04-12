@@ -4,31 +4,35 @@ use mruby_sys::{mrb_close, mrb_load_nstring_cxt, mrb_open, mrb_state, mrbc_conte
 use std::mem::transmute;
 use std::os::raw::c_char;
 use std::ptr::{self, NonNull};
+use std::marker::PhantomData;
 use value::MrbValue;
 
 /// wrapper of mrb_state
 #[derive(Clone, Copy, Debug)]
-pub struct State(NonNull<mrb_state>);
+pub struct State<'vm> {
+    data: NonNull<mrb_state>,
+    __marker: PhantomData<&'vm !>,
+}
 
-impl State {
-    fn new(state: *mut mrb_state) -> MrbResult<State> {
+impl<'vm> State<'vm> {
+    fn new(state: *mut mrb_state) -> MrbResult<Self> {
         if let Some(s) = NonNull::new(state) {
-            Ok(State(s))
+            Ok(State {
+                data: s,
+                __marker: PhantomData,
+            })
         } else {
             Err(ErrorKind::Null.into_with("[State::new] mrb_state is Null"))
         }
     }
     pub(crate) fn as_ptr(&self) -> *mut mrb_state {
-        self.0.as_ptr()
-    }
-    pub(crate) fn as_ref<'a>(&self) -> &'a Self {
-        unsafe { transmute(self) }
+        self.data.as_ptr()
     }
 }
 
 /// entry point of mrusby
 pub struct MrbVm<'vm> {
-    pub(crate) state: State,
+    state: State<'vm>,
     main_cxt: MrbContext<'vm>,
 }
 
@@ -36,15 +40,24 @@ impl<'vm> MrbVm<'vm> {
     pub fn new() -> MrbResult<MrbVm<'vm>> {
         unsafe {
             let state = chain!(State::new(mrb_open()), "[MrbVM::new]");
-            let cxt = chain!(MrbContext::new(state.as_ref()), "[MrbVM::new]");
+            let cxt = chain!(MrbContext::new(state), "[MrbVM::new]");
             Ok(MrbVm {
                 state: state,
                 main_cxt: cxt,
             })
         }
     }
-    pub fn cxt(&mut self) -> &mut MrbContext<'vm> {
+    pub fn state(&self) -> State<'vm> {
+        self.state.clone()
+    }
+    pub fn main(&mut self) -> &mut MrbContext<'vm> {
         &mut self.main_cxt
+    }
+    pub fn named(&self) -> MrbResult<MrbContext<'vm>> {
+        MrbContext::new(self.state.clone())
+    }
+    pub fn unnamed(&self) -> MrbContext<'vm> {
+        MrbContext::empty(self.state.clone())
     }
 }
 
@@ -58,12 +71,18 @@ impl<'vm> Drop for MrbVm<'vm> {
 
 /// Wrapper of mrbc_context
 pub struct MrbContext<'vm> {
-    state: &'vm State,
-    cxt: Option<&'vm mut mrbc_context>,
+    state: State<'vm>,
+    pub(crate) cxt: Option<&'vm mut mrbc_context>,
 }
 
 impl<'vm> MrbContext<'vm> {
-    fn new(state: &'vm State) -> MrbResult<Self> {
+    fn empty(state: State<'vm>) -> Self {
+        MrbContext {
+            state: state,
+            cxt: None,
+        }
+    }
+    fn new(state: State<'vm>) -> MrbResult<Self> {
         let cxt = unsafe {
             let cxt = mrbc_context_new(state.as_ptr());
             get_ref!(cxt, "[MrbContext::new] mrbc_context_new returned Null")
@@ -83,7 +102,7 @@ impl<'vm> MrbContext<'vm> {
         Ok(self)
     }
 
-    pub fn exec_str<'cxt>(&mut self, s: &str) -> MrbResult<MrbValue<'cxt>> {
+    pub fn exec_str<'cxt>(&'cxt mut self, s: &str) -> MrbResult<MrbValue<'cxt>> {
         let str_len = s.as_bytes().len();
         let str_p = s.as_ptr() as *const c_char;
         let val = unsafe {
@@ -94,6 +113,6 @@ impl<'vm> MrbContext<'vm> {
             };
             mrb_load_nstring_cxt(self.state.as_ptr(), str_p, str_len, cxt_p)
         };
-        MrbValue::from_raw(self.state.as_ref(), val)
+        MrbValue::from_raw(self.state, val)
     }
 }

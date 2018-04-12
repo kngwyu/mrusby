@@ -5,7 +5,7 @@ use vm::State;
 /// A type representing mruby Object
 pub struct MrbObject<'cxt> {
     pub(super) data: NonNull<RObject>,
-    pub(super) state: &'cxt State,
+    pub(super) state: State<'cxt>,
 }
 
 impl<'cxt> MrbObject<'cxt> {}

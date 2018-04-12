@@ -8,7 +8,7 @@ use vm::State;
 /// A type representing mruby class
 pub struct MrbClass<'cxt> {
     pub(super) data: NonNull<RClass>,
-    pub(super) state: &'cxt State,
+    pub(super) state: State<'cxt>,
 }
 
 impl<'cxt> MrbClass<'cxt> {}
