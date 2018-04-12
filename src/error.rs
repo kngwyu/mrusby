@@ -119,7 +119,7 @@ pub enum ErrorKind {
     FreeVal,
     Null,
     NumCast,
-    OtherType,
+    Conversion,
     Undefined,
 }
 
@@ -129,8 +129,8 @@ impl ErrorKind {
         match self {
             FreeVal => "FreeVal(invalid access to already freed variable)",
             Null => "Null(access to null pointer)",
-            NumCast => "NumCast error(not mruby problem)",
-            OtherType => "Other variant found when conveting from MrbValue",
+            NumCast => "NumCast::from failed(not mruby problem)",
+            Conversion => "Invalid Conversion",
             Undefined => "Undefined(access to undefined value or methods)",
         }
     }

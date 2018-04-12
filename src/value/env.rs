@@ -6,6 +6,7 @@ use std::convert::{TryFrom, TryInto};
 use std::ptr::NonNull;
 use vm::State;
 /// A type representing mruby Env
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct MrbEnv<'cxt> {
     pub(super) data: NonNull<REnv>,
     pub(super) state: State<'cxt>,

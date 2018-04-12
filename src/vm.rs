@@ -31,30 +31,29 @@ impl<'vm> State<'vm> {
 pub struct MrbVm<'vm> {
     state: State<'vm>,
     main_cxt: MrbContext<'vm>,
+    null_cxt: MrbContext<'vm>,
 }
 
 impl<'vm> MrbVm<'vm> {
     pub fn new() -> MrbResult<MrbVm<'vm>> {
-        unsafe {
-            let state = chain!(State::new(mrb_open()), "[MrbVM::new]");
-            let cxt = chain!(MrbContext::new(state), "[MrbVM::new]");
-            Ok(MrbVm {
-                state: state,
-                main_cxt: cxt,
-            })
-        }
+        let state = unsafe { mrb_open() };
+        let state = chain!(State::new(state), "[MrbVM::new]");
+        let main = chain!(MrbContext::new(state), "[MrbVM::new]");
+        let nul = MrbContext::empty(state);
+        Ok(MrbVm {
+            state: state,
+            main_cxt: main,
+            null_cxt: nul,
+        })
     }
     pub fn state(&self) -> State<'vm> {
         self.state.clone()
     }
-    pub fn main(&mut self) -> &mut MrbContext<'vm> {
-        &mut self.main_cxt
+    pub fn main(&self) -> &MrbContext<'vm> {
+        &self.main_cxt
     }
-    pub fn named(&self) -> MrbResult<MrbContext<'vm>> {
-        MrbContext::new(self.state.clone())
-    }
-    pub fn unnamed(&self) -> MrbContext<'vm> {
-        MrbContext::empty(self.state.clone())
+    pub fn disposable(&self) -> &MrbContext<'vm> {
+        q & self.null_cxt
     }
 }
 
@@ -69,7 +68,7 @@ impl<'vm> Drop for MrbVm<'vm> {
 /// Wrapper of mrbc_context
 pub struct MrbContext<'vm> {
     state: State<'vm>,
-    pub(crate) cxt: Option<&'vm mut mrbc_context>,
+    pub(crate) cxt: Option<NonNull<mrbc_context>>,
 }
 
 impl<'vm> MrbContext<'vm> {
@@ -82,7 +81,7 @@ impl<'vm> MrbContext<'vm> {
     fn new(state: State<'vm>) -> MrbResult<Self> {
         let cxt = unsafe {
             let cxt = mrbc_context_new(state.as_ptr());
-            get_ref!(cxt, "[MrbContext::new] mrbc_context_new returned Null")
+            non_null!(cxt, "[MrbContext::new]")
         };
         Ok(MrbContext {
             state: state,
@@ -90,21 +89,23 @@ impl<'vm> MrbContext<'vm> {
         })
     }
 
+    /// Reset compiler status context
     pub fn reset(&mut self) -> MrbResult<&mut Self> {
         let cxt = unsafe {
             let cxt = mrbc_context_new(self.state.as_ptr());
-            get_ref!(cxt, "[MrbContext::new] mrbc_context_new returned Null")
+            non_null!(cxt, "[MrbContext::new]")
         };
         self.cxt = Some(cxt);
         Ok(self)
     }
 
+    /// Exec mruby code as from string
     pub fn exec_str<'cxt>(&'cxt mut self, s: &str) -> MrbResult<MrbValue<'cxt>> {
         let str_len = s.as_bytes().len();
         let str_p = s.as_ptr() as *const c_char;
         let val = unsafe {
-            let cxt_p = if let Some(ref mut cxt) = self.cxt {
-                *cxt as *mut mrbc_context
+            let cxt_p = if let Some(ref cxt) = self.cxt {
+                cxt.as_ptr()
             } else {
                 ptr::null_mut::<mrbc_context>()
             };
