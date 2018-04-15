@@ -1,11 +1,11 @@
 use super::{FromMrb, FromMrbRaw, IntoMrb, MrbPtrType, MrbValue};
 use error::{ErrorKind, MrbError, MrbResult};
+use mruby::{Mruby, State};
 use mruby_sys::{mrb_hash_delete_key, mrb_hash_empty_p, mrb_hash_get, mrb_hash_keys, mrb_hash_new,
                 mrb_hash_set, RHash};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ptr::NonNull;
-use vm::{MrbVm, State};
 
 /// A type representing mruby Hash
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -64,7 +64,7 @@ impl<'cxt> MrbHash<'cxt> {
     /// ```ruby
     /// Hash.new
     /// ```
-    pub fn new(vm: &'cxt MrbVm) -> MrbResult<Self> {
+    pub fn new(vm: &'cxt Mruby) -> MrbResult<Self> {
         let raw_val = unsafe { mrb_hash_new(vm.state().as_ptr()) };
         Self::from_mrb_raw(raw_val, vm.state()).map_err(|e| e.chain("[MrbHash::new]"))
     }
@@ -94,7 +94,7 @@ impl<'cxt> MrbHash<'cxt> {
 //     K: FromMrb<'cxt> + Hash + Eq,
 //     V: FromMrb<'cxt>,
 // {
-//     fn into_mrb(self, vm: &'cxt MrbVm) -> MrbResult<MrbValue<'cxt>> {
+//     fn into_mrb(self, vm: &'cxt Mruby) -> MrbResult<MrbValue<'cxt>> {
 
 //     }
 // }
@@ -102,28 +102,33 @@ impl<'cxt> MrbHash<'cxt> {
 #[cfg(test)]
 mod hash_test {
     use super::*;
+    use test_utils::with_vm;
     #[test]
     fn set_get() {
-        let vm = MrbVm::new().unwrap();
-        let mut hash = MrbHash::new(&vm).unwrap();
-        hash.set(1000, -500).unwrap();
-        hash.set(200, -3.14).unwrap();
-        let got: i64 = hash.get(1000).unwrap();
-        assert_eq!(got, -500);
-        let got: f64 = hash.get(200).unwrap();
-        assert!(got <= -3.13 && got >= -3.15);
-        let got: MrbValue = hash.get(3).unwrap();
-        assert_eq!(got, MrbValue::Bool(false));
+        with_vm(|vm| {
+            let mut hash = MrbHash::new(&vm)?;
+            hash.set(1000, -500)?;
+            hash.set(200, -3.14)?;
+            let got: i64 = hash.get(1000)?;
+            assert_eq!(got, -500);
+            let got: f64 = hash.get(200)?;
+            assert!(got <= -3.13 && got >= -3.15);
+            let got: MrbValue = hash.get(3)?;
+            assert_eq!(got, MrbValue::Bool(false));
+            Ok(())
+        });
     }
     #[test]
     fn set_delete() {
-        let vm = MrbVm::new().unwrap();
-        let mut hash = MrbHash::new(&vm).unwrap();
-        assert!(hash.is_empty().unwrap());
-        hash.set(200, 50).unwrap();
-        assert!(!hash.is_empty().unwrap());
-        let got: i64 = hash.delete(200).unwrap();
-        assert_eq!(got, 50);
-        assert!(hash.is_empty().unwrap());
+        with_vm(|vm| {
+            let mut hash = MrbHash::new(&vm)?;
+            assert!(hash.is_empty()?);
+            hash.set(200, 50)?;
+            assert!(!hash.is_empty()?);
+            let got: i64 = hash.delete(200)?;
+            assert_eq!(got, 50);
+            assert!(hash.is_empty()?);
+            Ok(())
+        });
     }
 }

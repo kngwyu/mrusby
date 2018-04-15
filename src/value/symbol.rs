@@ -1,7 +1,7 @@
 use mruby_sys::mrb_sym;
 use std::marker::PhantomData;
 
-use vm::State;
+use mruby::State;
 /// A type representing mruby Symbol
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct MrbSymbol<'cxt> {

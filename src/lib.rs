@@ -4,9 +4,10 @@ extern crate tuple_map;
 
 #[macro_use]
 mod error;
+mod mruby;
+mod test_utils;
 #[allow(non_upper_case_globals)]
 mod value;
-mod vm;
 
 #[cfg(test)]
 mod rawapi_test {
@@ -19,7 +20,7 @@ mod rawapi_test {
     }
     fn mruby_close(mrb: *mut mrb_state) {
         unsafe { mrb_close(mrb) }
-    }b
+    }
     fn compiler_context(mrb: *mut mrb_state) -> *mut mrbc_context {
         unsafe { mrbc_context_new(mrb) }
     }

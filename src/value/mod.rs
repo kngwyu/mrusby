@@ -27,7 +27,7 @@ pub use self::object::MrbObject;
 pub use self::symbol::MrbSymbol;
 
 use error::{ErrorKind, MrbResult};
-use vm::State;
+use mruby::State;
 
 /// MrbInt is same as pointer size (usually it's 64bit)
 pub type MrbInt = mrb_int;
@@ -228,36 +228,41 @@ impl<'cxt, T: FromMrb<'cxt>> FromMrbRaw<'cxt> for T {
     }
 }
 
-/// utility trait to convert None to MrbError in some contexts
-pub(crate) trait ErrCast<T> {
-    fn cast(self) -> MrbResult<T>;
-}
-
-impl<T, U> ErrCast<T> for U
-where
-    T: NumCast,
-    U: NumCast,
-{
-    fn cast(self) -> MrbResult<T> {
-        if let Some(res) = T::from(self) {
-            Ok(res)
-        } else {
-            Err(ErrorKind::NumCast.into())
-        }
+fn num_cast<T: NumCast, U: NumCast>(u: U) -> MrbResult<T> {
+    if let Some(res) = T::from(u) {
+        Ok(res)
+    } else {
+        Err(ErrorKind::NumCast.into())
     }
 }
 
-macro_rules! impl_conv {
+macro_rules! impl_num_conv {
     ($t:ty, $var:ident) => {
         impl<'cxt> IntoMrb<'cxt> for $t {
             fn into_mrb(self, _state: State<'cxt>) -> MrbResult<MrbValue<'cxt>> {
-                Ok(MrbValue::$var(self.cast()?))
+                num_cast(self)
+                    .map_err(|e| {
+                        let msg = format!(
+                            "[IntoMrb::into_mrb] NumCast Error: MrbValue::{} => {}",
+                            stringify!($var),
+                            stringify!($t)
+                        );
+                        e.chain(msg)
+                    })
+                    .map(|num| MrbValue::$var(num))
             }
         }
         impl<'cxt> FromMrb<'cxt> for $t {
             fn from_mrb(val: MrbValue<'cxt>) -> MrbResult<Self> {
                 if let MrbValue::$var(i) = val {
-                    i.cast()
+                    num_cast(i).map_err(|e| {
+                        let msg = format!(
+                            "[FromMrb::from_mrb] NumCast Error: {} => MrbValue::{}",
+                            stringify!($t),
+                            stringify!($var),
+                        );
+                        e.chain(msg)
+                    })
                 } else {
                     let err_msg = format!(
                         "[FromMrb::from_mrb] attempted {:?} => {}",
@@ -271,18 +276,18 @@ macro_rules! impl_conv {
     };
 }
 
-impl_conv!(u8, Integer);
-impl_conv!(u16, Integer);
-impl_conv!(u32, Integer);
-impl_conv!(u64, Integer);
-impl_conv!(usize, Integer);
-impl_conv!(i8, Integer);
-impl_conv!(i16, Integer);
-impl_conv!(i32, Integer);
-impl_conv!(i64, Integer);
-impl_conv!(isize, Integer);
-impl_conv!(f32, Float);
-impl_conv!(f64, Float);
+impl_num_conv!(u8, Integer);
+impl_num_conv!(u16, Integer);
+impl_num_conv!(u32, Integer);
+impl_num_conv!(u64, Integer);
+impl_num_conv!(usize, Integer);
+impl_num_conv!(i8, Integer);
+impl_num_conv!(i16, Integer);
+impl_num_conv!(i32, Integer);
+impl_num_conv!(i64, Integer);
+impl_num_conv!(isize, Integer);
+impl_num_conv!(f32, Float);
+impl_num_conv!(f64, Float);
 
 impl<'cxt> IntoMrb<'cxt> for bool {
     fn into_mrb(self, _state: State<'cxt>) -> MrbResult<MrbValue<'cxt>> {

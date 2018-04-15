@@ -1,9 +1,9 @@
 use super::{FromMrb, FromMrbRaw, IntoMrb, MrbInt, MrbPtrType, MrbValue};
 use error::{ErrorKind, MrbResult};
+use mruby::{Mruby, State};
 use mruby_sys::{mrb_ary_concat, mrb_ary_entry, mrb_ary_new, mrb_ary_pop, mrb_ary_push, RArray};
 use std::ptr::NonNull;
 use tuple_map::TupleMap2;
-use vm::{MrbVm, State};
 /// A type representing mruby Array
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct MrbArray<'cxt> {
@@ -17,7 +17,7 @@ impl<'cxt> MrbArray<'cxt> {
     /// ```ruby
     /// Array.new
     /// ```
-    pub fn new(vm: &'cxt MrbVm) -> MrbResult<Self> {
+    pub fn new(vm: &'cxt Mruby) -> MrbResult<Self> {
         let raw_val = unsafe { mrb_ary_new(vm.state().as_ptr()) };
         Self::from_mrb_raw(raw_val, vm.state()).map_err(|e| e.chain("[MrbArray::new]"))
     }
@@ -59,17 +59,16 @@ impl<'cxt> MrbArray<'cxt> {
 #[cfg(test)]
 mod array_test {
     use super::*;
+    use test_utils::with_vm;
     #[test]
-    fn push_get() {
-        let f = || -> MrbResult<()> {
-            let vm = MrbVm::new()?;
+    fn push_pop() {
+        with_vm(|vm: Mruby| {
             let mut ary = MrbArray::new(&vm)?;
             ary.push(3)?;
             ary.push(4)?;
             assert_eq!(ary.get::<i64>(0)?, 3);
             assert_eq!(ary.get::<i64>(1)?, 4);
             Ok(())
-        };
-        f().unwrap();
+        });
     }
 }
